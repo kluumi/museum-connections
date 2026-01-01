@@ -1,0 +1,16 @@
+{
+  "name": "td-signaling-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "WebRTC Signaling Server compatible with TouchDesigner",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
