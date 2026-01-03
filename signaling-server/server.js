@@ -21,7 +21,9 @@ const RATE_LIMIT_MAX_MESSAGES = 50; // messages per window
 // Message types that should be broadcast to all clients
 const BROADCAST_EVENTS = new Set([
   "stream_stopped",
+  "stream_stop_complete",
   "stream_started",
+  "stream_start_complete",
   "page_opened",
   "stream_restored",
 ]);
