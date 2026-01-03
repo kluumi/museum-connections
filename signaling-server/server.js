@@ -238,8 +238,26 @@ wss.on("connection", (ws, req) => {
         return;
       }
 
-      // Handle reconnection: close old connection if same name
+      // Block duplicate connections for sender nodes (nantes, paris)
+      // These are critical - we don't want to kick an active stream
+      const SENDER_NODES = ["nantes", "paris"];
       const existingWs = clients.get(name);
+      if (existingWs && SENDER_NODES.includes(name)) {
+        log("WARN", "Duplicate sender connection rejected", {
+          clientId: name,
+        });
+        ws.send(
+          JSON.stringify({
+            type: "login_error",
+            error: "already_connected",
+            message: `Un émetteur ${name} est déjà connecté`,
+          })
+        );
+        ws.close(4003, "Sender already connected");
+        return;
+      }
+
+      // For other nodes (operators, receivers), allow reconnection by closing old connection
       if (existingWs) {
         log("INFO", "Reconnection detected, closing old connection", {
           clientId: name,
