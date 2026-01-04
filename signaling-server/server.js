@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 8080;
 const PING_INTERVAL = 30_000;
 const MAX_CLIENT_NAME_LENGTH = 64;
 const MAX_PAYLOAD = 64 * 1024; // 64KB
+const HTTP_TIMEOUT = 30_000; // 30 seconds - prevents Slowloris attacks
 
 // Rate limiting
 const RATE_LIMIT_WINDOW = 1000; // 1 second
@@ -88,6 +89,46 @@ function validateClientName(name) {
   // Only allow alphanumeric, dash, underscore
   if (!/^[a-zA-Z0-9_-]+$/.test(sanitized)) return null;
   return sanitized.length > 0 ? sanitized : null;
+}
+
+/**
+ * Validates a relay message has required fields
+ * @param {object} data - The message data
+ * @param {string} type - Expected message type
+ * @returns {{ valid: boolean, error?: string }}
+ */
+function validateRelayMessage(data, type) {
+  // Validate target
+  if (!data.target || typeof data.target !== "string") {
+    return { valid: false, error: "missing_target" };
+  }
+  if (!validateClientName(data.target)) {
+    return { valid: false, error: "invalid_target" };
+  }
+
+  // Type-specific validation
+  switch (type) {
+    case "offer":
+    case "answer":
+      if (!data.offer && !data.answer) {
+        return { valid: false, error: "missing_sdp" };
+      }
+      // Validate SDP is an object with type and sdp fields
+      const sdp = data.offer || data.answer;
+      if (typeof sdp !== "object" || !sdp.type || !sdp.sdp) {
+        return { valid: false, error: "invalid_sdp" };
+      }
+      break;
+    case "candidate":
+    case "ice-candidate":
+      if (!data.candidate) {
+        return { valid: false, error: "missing_candidate" };
+      }
+      break;
+    // request_offer doesn't need additional validation
+  }
+
+  return { valid: true };
 }
 
 /**
@@ -243,6 +284,11 @@ httpServer.on("error", (error) => {
   log("ERROR", "HTTP server error", { error: error.message });
 });
 
+// Set HTTP timeouts to prevent Slowloris attacks
+httpServer.timeout = HTTP_TIMEOUT;
+httpServer.headersTimeout = HTTP_TIMEOUT;
+httpServer.requestTimeout = HTTP_TIMEOUT;
+
 // --- WebSocket Server ---
 const wss = new WebSocketServer({
   server: httpServer,
@@ -375,12 +421,40 @@ wss.on("connection", (ws, req) => {
 
     // --- Relay to target ---
     if (data.target && RELAY_EVENTS.has(data.type)) {
+      // Validate relay message structure
+      const validation = validateRelayMessage(data, data.type);
+      if (!validation.valid) {
+        log("WARN", "Invalid relay message", {
+          type: data.type,
+          error: validation.error,
+          clientId,
+        });
+        safeSend(
+          ws,
+          JSON.stringify({ type: "error", error: validation.error }),
+          clientId
+        );
+        return;
+      }
       relayToTarget(data.target, data, ws, clientId);
       return;
     }
 
     // --- Unknown message with target (relay anyway for flexibility) ---
     if (data.target) {
+      // Still validate target is a valid node ID
+      if (!validateClientName(data.target)) {
+        log("WARN", "Invalid target in unknown message", {
+          type: data.type,
+          clientId,
+        });
+        safeSend(
+          ws,
+          JSON.stringify({ type: "error", error: "invalid_target" }),
+          clientId
+        );
+        return;
+      }
       log("DEBUG", "Relaying unknown message type", {
         type: data.type,
         from: clientId,
