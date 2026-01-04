@@ -114,6 +114,29 @@ function checkRateLimit(clientId) {
 
 // --- Message Handling ---
 /**
+ * Safely send a message to a WebSocket, catching errors
+ * @param {WebSocket} ws
+ * @param {string} message
+ * @param {string} [clientId] - for logging
+ * @returns {boolean} true if sent successfully
+ */
+function safeSend(ws, message, clientId = "unknown") {
+  try {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(message);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    log("ERROR", "Failed to send message", {
+      clientId,
+      error: error.message,
+    });
+    return false;
+  }
+}
+
+/**
  * Broadcasts a message to all clients except the sender
  * @param {string} type
  * @param {Record<string, unknown>} payload
@@ -124,8 +147,7 @@ function broadcast(type, payload, excludeClient) {
   let sentCount = 0;
 
   for (const [id, ws] of clients) {
-    if (id !== excludeClient && ws.readyState === WebSocket.OPEN) {
-      ws.send(message);
+    if (id !== excludeClient && safeSend(ws, message, id)) {
       sentCount++;
     }
   }
@@ -145,16 +167,19 @@ function relayToTarget(targetId, data, senderWs, senderId) {
 
   if (targetWs?.readyState === WebSocket.OPEN) {
     data.from = senderId;
-    targetWs.send(JSON.stringify(data));
-    log("DEBUG", `Relay ${data.type}`, { from: senderId, to: targetId });
+    if (safeSend(targetWs, JSON.stringify(data), targetId)) {
+      log("DEBUG", `Relay ${data.type}`, { from: senderId, to: targetId });
+    }
   } else {
     log("WARN", "Target not found", { target: targetId, from: senderId });
-    senderWs.send(
+    safeSend(
+      senderWs,
       JSON.stringify({
         type: "error",
         error: "target_not_found",
         target: targetId,
-      })
+      }),
+      senderId
     );
   }
 }
@@ -171,34 +196,51 @@ function trackMessage(type) {
 
 // --- HTTP Server for Health Check ---
 const httpServer = createServer((req, res) => {
-  if ((req.url === "/health" || req.url === "/") && req.method === "GET") {
-    const uptimeSeconds = (Date.now() - metrics.startTime) / 1000;
-    const messageStats = Object.fromEntries(metrics.messagesPerType);
+  try {
+    if ((req.url === "/health" || req.url === "/") && req.method === "GET") {
+      const uptimeSeconds = (Date.now() - metrics.startTime) / 1000;
+      const messageStats = Object.fromEntries(metrics.messagesPerType);
 
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "healthy",
-        clients: {
-          current: clients.size,
-          total: metrics.totalConnections,
-          list: [...clients.keys()],
-        },
-        messages: {
-          total: metrics.totalMessages,
-          byType: messageStats,
-        },
-        uptime: Math.round(uptimeSeconds),
-        timestamp: new Date().toISOString(),
-      })
-    );
-  } else if (req.url === "/clients" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ clients: [...clients.keys()] }));
-  } else {
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found" }));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "healthy",
+          clients: {
+            current: clients.size,
+            total: metrics.totalConnections,
+            list: [...clients.keys()],
+          },
+          messages: {
+            total: metrics.totalMessages,
+            byType: messageStats,
+          },
+          uptime: Math.round(uptimeSeconds),
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } else if (req.url === "/clients" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ clients: [...clients.keys()] }));
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found" }));
+    }
+  } catch (error) {
+    log("ERROR", "HTTP handler error", { error: error.message, url: req.url });
+    try {
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+      }
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    } catch {
+      // Response already ended or connection closed
+    }
   }
+});
+
+// Handle HTTP server errors
+httpServer.on("error", (error) => {
+  log("ERROR", "HTTP server error", { error: error.message });
 });
 
 // --- WebSocket Server ---
@@ -236,7 +278,7 @@ wss.on("connection", (ws, req) => {
     if (data.type === "login") {
       const name = validateClientName(data.name ?? data.id);
       if (!name) {
-        ws.send(JSON.stringify({ type: "error", error: "invalid_name" }));
+        safeSend(ws, JSON.stringify({ type: "error", error: "invalid_name" }));
         ws.close(4001, "Invalid client name");
         log("WARN", "Invalid login name", { provided: data.name ?? data.id });
         return;
@@ -253,7 +295,8 @@ wss.on("connection", (ws, req) => {
         log("WARN", `Duplicate ${isSender ? "sender" : "OBS receiver"} connection rejected`, {
           clientId: name,
         });
-        ws.send(
+        safeSend(
+          ws,
           JSON.stringify({
             type: "login_error",
             error: "already_connected",
@@ -281,12 +324,14 @@ wss.on("connection", (ws, req) => {
       });
 
       // Confirm registration
-      ws.send(
+      safeSend(
+        ws,
         JSON.stringify({
           type: "login_success",
           id: clientId,
           clients: [...clients.keys()],
-        })
+        }),
+        clientId
       );
 
       // Notify other clients
@@ -297,20 +342,20 @@ wss.on("connection", (ws, req) => {
     // All other messages require login
     if (!clientId) {
       log("WARN", "Message before login", { type: data.type });
-      ws.send(JSON.stringify({ type: "error", error: "not_logged_in" }));
+      safeSend(ws, JSON.stringify({ type: "error", error: "not_logged_in" }));
       return;
     }
 
     // Rate limiting
     if (!checkRateLimit(clientId)) {
       log("WARN", "Rate limit exceeded", { clientId });
-      ws.send(JSON.stringify({ type: "error", error: "rate_limit_exceeded" }));
+      safeSend(ws, JSON.stringify({ type: "error", error: "rate_limit_exceeded" }), clientId);
       return;
     }
 
     // --- Heartbeat/Ping ---
     if (data.type === "ping") {
-      ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+      safeSend(ws, JSON.stringify({ type: "pong", timestamp: Date.now() }), clientId);
       return;
     }
 
