@@ -25,6 +25,7 @@ const BROADCAST_EVENTS = new Set([
   "stream_started",    // WebRTC connected, stream is live
   "stream_stopped",    // WebRTC disconnected, stream ended
   "stream_heartbeat",  // Sender alive signal (every 5s while streaming)
+  "stream_error",      // Sender encountered error during start/stream
   "page_opened",       // Page loaded/refreshed
   "stream_restored",   // Network recovered after loss
 ]);
@@ -241,22 +242,25 @@ wss.on("connection", (ws, req) => {
         return;
       }
 
-      // Block duplicate connections for sender nodes (nantes, paris)
-      // These are critical - we don't want to kick an active stream
-      const SENDER_NODES = ["nantes", "paris"];
+      // Block duplicate connections for critical nodes (senders + OBS receivers)
+      // These are critical - we don't want to kick an active stream or OBS display
+      const PROTECTED_NODES = ["nantes", "paris", "obs_nantes", "obs_paris"];
       const existingWs = clients.get(name);
-      if (existingWs && SENDER_NODES.includes(name)) {
-        log("WARN", "Duplicate sender connection rejected", {
+      if (existingWs && PROTECTED_NODES.includes(name)) {
+        const isSender = ["nantes", "paris"].includes(name);
+        const nodeType = isSender ? "émetteur" : "récepteur OBS";
+        const displayName = name.replace("obs_", "OBS ");
+        log("WARN", `Duplicate ${isSender ? "sender" : "OBS receiver"} connection rejected`, {
           clientId: name,
         });
         ws.send(
           JSON.stringify({
             type: "login_error",
             error: "already_connected",
-            message: `Un émetteur ${name} est déjà connecté`,
+            message: `Un ${nodeType} ${displayName} est déjà connecté`,
           })
         );
-        ws.close(4003, "Sender already connected");
+        ws.close(4003, `${isSender ? "Sender" : "OBS receiver"} already connected`);
         return;
       }
 
