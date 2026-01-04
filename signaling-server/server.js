@@ -24,6 +24,7 @@ const BROADCAST_EVENTS = new Set([
   "stream_stopping",   // Sender clicked stop, loading started
   "stream_started",    // WebRTC connected, stream is live
   "stream_stopped",    // WebRTC disconnected, stream ended
+  "stream_heartbeat",  // Sender alive signal (every 5s while streaming)
   "page_opened",       // Page loaded/refreshed
   "stream_restored",   // Network recovered after loss
 ]);
