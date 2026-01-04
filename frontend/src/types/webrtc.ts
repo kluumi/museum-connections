@@ -33,9 +33,9 @@ export const RESOLUTION_CONSTRAINTS: Record<
   QVGA: { width: 320, height: 240 },
 };
 
-// Default video settings
+// Default video settings (auto mode enabled by default for optimal quality)
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
-  mode: "manual",
+  mode: "auto",
   resolution: "auto",
   fps: "auto",
   bitrate: "auto",

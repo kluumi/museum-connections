@@ -294,8 +294,11 @@ export function StatsPanel({
     false,
   );
 
-  // Bandwidth estimation - only use outgoing (for senders), incoming is unreliable
-  const availableBandwidth = connection?.availableOutgoingBitrate || 0;
+  // Bandwidth estimation - use outgoing for senders, incoming for receivers
+  const availableBandwidth =
+    connection?.availableOutgoingBitrate ||
+    connection?.availableIncomingBitrate ||
+    0;
   // Low bandwidth warning if less than 2 Mbps, error if less than 1 Mbps
   const bandwidthSeverity = getSeverity(
     availableBandwidth,

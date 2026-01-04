@@ -197,12 +197,25 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
 
     try {
       // Request permission first (needed for labels)
-      // IMPORTANT: Stop the tracks immediately to release the camera
-      // Otherwise the camera gets "locked" at its default resolution
+      // IMPORTANT: Capture the default device IDs BEFORE stopping the tracks
+      // This allows us to pre-select the browser's chosen devices on first visit
       const permissionStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
+
+      // Extract default device IDs from the permission stream
+      // These are the devices the browser selected (often the system defaults)
+      const defaultVideoTrack = permissionStream.getVideoTracks()[0];
+      const defaultAudioTrack = permissionStream.getAudioTracks()[0];
+      const defaultCameraId = defaultVideoTrack?.getSettings().deviceId ?? null;
+      const defaultMicrophoneId =
+        defaultAudioTrack?.getSettings().deviceId ?? null;
+
+      console.log("📹 Browser default camera:", defaultCameraId);
+      console.log("🎤 Browser default microphone:", defaultMicrophoneId);
+
+      // Now stop the tracks to release the camera
       for (const track of permissionStream.getTracks()) {
         track.stop();
       }
@@ -234,46 +247,67 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
         .filter((d) => d.kind === "audiooutput")
         .map((d) => d.deviceId);
 
-      // Restore persisted camera if available, otherwise user must select manually
-      // This allows returning users to have their camera restored on refresh
+      // Determine which camera to use:
+      // 1. Persisted selection (returning user)
+      // 2. Browser default from permission prompt (first-time user)
+      // 3. None (fallback, shouldn't happen)
       console.log("📹 Persisted selections:", persisted);
       console.log("📹 Available cameras:", cameraIds);
+      console.log("📹 Browser default camera:", defaultCameraId);
+
+      let cameraToSelect: string | null = null;
 
       if (persisted.cameraId && cameraIds.includes(persisted.cameraId)) {
-        // Restore previously selected camera
+        // Priority 1: Restore previously selected camera (returning user)
+        console.log("📹 Using persisted camera:", persisted.cameraId);
+        cameraToSelect = persisted.cameraId;
+      } else if (defaultCameraId && cameraIds.includes(defaultCameraId)) {
+        // Priority 2: Use browser's default camera (first-time user)
+        // This is the camera the user just allowed in the browser permission prompt
+        console.log("📹 Using browser default camera:", defaultCameraId);
+        cameraToSelect = defaultCameraId;
+        // Persist this selection so it's remembered next time
+        persistDevices(nodeId, { cameraId: defaultCameraId });
+      } else {
+        console.log("📹 No camera available to select");
+      }
+
+      if (cameraToSelect) {
+        selectedCamera = cameraToSelect;
         // IMPORTANT: Detect capabilities FIRST (locks camera), then set state
         // This prevents race condition where SenderDashboard tries to start preview
         // while capability detection still has the camera locked
-        console.log("📹 Restoring persisted camera:", persisted.cameraId);
-        selectedCamera = persisted.cameraId;
-
-        // Detect capabilities first (this acquires and releases the camera)
-        const caps = await detectCameraCapabilities(persisted.cameraId);
+        const caps = await detectCameraCapabilities(cameraToSelect);
         setCameraCapabilities(caps);
 
         // NOW set camera state - SenderDashboard effect will trigger after camera is free
         console.log("📹 Capabilities detected, now setting camera state");
-        setSelectedCamera(persisted.cameraId);
-      } else {
-        console.log(
-          "📹 No persisted camera or not available - waiting for user selection",
-        );
+        setSelectedCamera(cameraToSelect);
       }
 
-      // Restore persisted microphone if available, otherwise user must select manually
-      // Same behavior as camera - no auto-select on first visit
+      // Determine which microphone to use (same priority logic as camera)
+      let micToSelect: string | null = null;
+
       if (persisted.microphoneId && micIds.includes(persisted.microphoneId)) {
-        console.log(
-          "🎤 Restoring persisted microphone:",
-          persisted.microphoneId,
-        );
-        selectedMic = persisted.microphoneId;
-        setSelectedMicrophone(persisted.microphoneId);
+        // Priority 1: Restore previously selected microphone (returning user)
+        console.log("🎤 Using persisted microphone:", persisted.microphoneId);
+        micToSelect = persisted.microphoneId;
+      } else if (defaultMicrophoneId && micIds.includes(defaultMicrophoneId)) {
+        // Priority 2: Use browser's default microphone (first-time user)
+        console.log("🎤 Using browser default microphone:", defaultMicrophoneId);
+        micToSelect = defaultMicrophoneId;
+        // Persist this selection so it's remembered next time
+        persistDevices(nodeId, { microphoneId: defaultMicrophoneId });
       } else {
-        console.log(
-          "🎤 No persisted microphone or not available - waiting for user selection",
-        );
+        console.log("🎤 No microphone available to select");
       }
+
+      if (micToSelect) {
+        selectedMic = micToSelect;
+        setSelectedMicrophone(micToSelect);
+      }
+
+      // Restore persisted speaker if available
       if (persisted.speakerId && speakerIds.includes(persisted.speakerId)) {
         setSelectedSpeaker(persisted.speakerId);
       }
@@ -297,6 +331,7 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
     setSelectedSpeaker,
     detectCameraCapabilities,
     setCameraCapabilities,
+    persistDevices,
   ]);
 
   // Select camera, persist for this node, and detect capabilities
