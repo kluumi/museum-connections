@@ -235,6 +235,16 @@ function trackMessage(type) {
   metrics.messagesPerType.set(type, count + 1);
 }
 
+// Check if request is from localhost (for sensitive endpoints)
+function isLocalRequest(req) {
+  const remoteAddress = req.socket.remoteAddress;
+  return (
+    remoteAddress === "127.0.0.1" ||
+    remoteAddress === "::1" ||
+    remoteAddress === "::ffff:127.0.0.1"
+  );
+}
+
 // --- HTTP Server for Health Check ---
 const httpServer = createServer((req, res) => {
   try {
@@ -242,24 +252,35 @@ const httpServer = createServer((req, res) => {
       const uptimeSeconds = (Date.now() - metrics.startTime) / 1000;
       const messageStats = Object.fromEntries(metrics.messagesPerType);
 
+      // Basic health info for public access
+      const healthResponse = {
+        status: "healthy",
+        clients: {
+          current: clients.size,
+          total: metrics.totalConnections,
+        },
+        messages: {
+          total: metrics.totalMessages,
+          byType: messageStats,
+        },
+        uptime: Math.round(uptimeSeconds),
+        timestamp: new Date().toISOString(),
+      };
+
+      // Only expose client list to localhost requests
+      if (isLocalRequest(req)) {
+        healthResponse.clients.list = [...clients.keys()];
+      }
+
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "healthy",
-          clients: {
-            current: clients.size,
-            total: metrics.totalConnections,
-            list: [...clients.keys()],
-          },
-          messages: {
-            total: metrics.totalMessages,
-            byType: messageStats,
-          },
-          uptime: Math.round(uptimeSeconds),
-          timestamp: new Date().toISOString(),
-        })
-      );
+      res.end(JSON.stringify(healthResponse));
     } else if (req.url === "/clients" && req.method === "GET") {
+      // /clients endpoint only accessible from localhost
+      if (!isLocalRequest(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Forbidden" }));
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ clients: [...clients.keys()] }));
     } else {
