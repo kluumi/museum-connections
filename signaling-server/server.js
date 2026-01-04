@@ -485,6 +485,11 @@ wss.on("connection", (ws, req) => {
 
   ws.on("error", (error) => {
     log("ERROR", "WebSocket error", { clientId, error: error.message });
+    // Clear ping interval on error to prevent zombie intervals
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
+    }
   });
 
   // Periodic ping to keep connection alive
@@ -495,7 +500,7 @@ wss.on("connection", (ws, req) => {
   }, PING_INTERVAL);
 });
 
-// Clean up stale rate limit entries periodically
+// Clean up stale rate limit entries periodically (every 10s to minimize memory)
 setInterval(() => {
   const now = Date.now();
   for (const [id, limit] of rateLimits) {
@@ -503,7 +508,7 @@ setInterval(() => {
       rateLimits.delete(id);
     }
   }
-}, 60_000);
+}, 10_000);
 
 // --- Server Startup ---
 httpServer.listen(PORT, () => {
