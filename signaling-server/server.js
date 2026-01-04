@@ -20,12 +20,12 @@ const RATE_LIMIT_MAX_MESSAGES = 50; // messages per window
 
 // Message types that should be broadcast to all clients
 const BROADCAST_EVENTS = new Set([
-  "stream_stopped",
-  "stream_stop_complete",
-  "stream_started",
-  "stream_start_complete",
-  "page_opened",
-  "stream_restored",
+  "stream_starting",   // Sender clicked start, loading started
+  "stream_stopping",   // Sender clicked stop, loading started
+  "stream_started",    // WebRTC connected, stream is live
+  "stream_stopped",    // WebRTC disconnected, stream ended
+  "page_opened",       // Page loaded/refreshed
+  "stream_restored",   // Network recovered after loss
 ]);
 
 // Message types that should be relayed to a specific target
