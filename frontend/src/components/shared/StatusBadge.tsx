@@ -138,7 +138,6 @@ export function StreamingBadge({
         return "Reconnexion...";
       case ConnectionState.FAILED:
         return "Échec";
-      case ConnectionState.DISCONNECTED:
       default:
         return "Arrêté";
     }
@@ -164,7 +163,6 @@ export function StreamingBadge({
         return "Reconnexion en cours...";
       case ConnectionState.FAILED:
         return "La connexion a échoué.";
-      case ConnectionState.DISCONNECTED:
       default:
         return "Aucune diffusion active.";
     }

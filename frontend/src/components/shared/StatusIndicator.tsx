@@ -21,6 +21,12 @@ const sizeStyles = {
   lg: "h-3 w-3",
 };
 
+const statusLabels: Record<StatusType, string> = {
+  online: "En ligne",
+  pending: "En attente",
+  offline: "Hors ligne",
+};
+
 export function StatusIndicator({
   status,
   size = "md",
@@ -28,13 +34,14 @@ export function StatusIndicator({
 }: StatusIndicatorProps) {
   return (
     <span
+      role="img"
       className={cn(
         "inline-block rounded-full",
         sizeStyles[size],
         statusStyles[status],
         className,
       )}
-      aria-label={status}
+      aria-label={statusLabels[status]}
     />
   );
 }

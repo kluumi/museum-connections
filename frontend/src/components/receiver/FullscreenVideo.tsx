@@ -34,12 +34,22 @@ export function FullscreenVideo({ stream, className }: FullscreenVideoProps) {
   }, [isMuted]);
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: div is needed to wrap video element for fullscreen layout
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={isMuted ? "Cliquez pour activer le son" : "Vidéo en cours"}
       className={cn(
         "relative h-screen w-screen cursor-pointer bg-black",
         className,
       )}
       onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
     >
       <video
         ref={videoRef}

@@ -70,13 +70,18 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
         const videoTrack = stream.getVideoTracks()[0];
         if (!videoTrack) {
           console.warn("📹 No video track found");
-          stream.getTracks().forEach((t) => t.stop());
+          for (const t of stream.getTracks()) {
+            t.stop();
+          }
           return null;
         }
 
         // Get capabilities from the track
         const capabilities = videoTrack.getCapabilities?.();
-        stream.getTracks().forEach((t) => t.stop()); // Stop the test stream
+        // Stop the test stream
+        for (const t of stream.getTracks()) {
+          t.stop();
+        }
 
         // Wait for camera to fully release before returning
         // Increased to 500ms for mobile/5G devices where camera takes longer to settle
@@ -198,7 +203,9 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
         video: true,
         audio: true,
       });
-      permissionStream.getTracks().forEach((track) => track.stop());
+      for (const track of permissionStream.getTracks()) {
+        track.stop();
+      }
       console.log("📹 Permission stream stopped to release camera");
 
       const devices = await navigator.mediaDevices.enumerateDevices();

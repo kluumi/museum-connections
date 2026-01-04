@@ -1,6 +1,7 @@
 // Railway production signaling URL (default for all environments)
 // Override with VITE_SIGNALING_URL=ws://localhost:8080 for local server testing
-const DEFAULT_SIGNALING_URL = "wss://museum-connections-production.up.railway.app";
+const DEFAULT_SIGNALING_URL =
+  "wss://museum-connections-production.up.railway.app";
 
 export const CONFIG = {
   SIGNALING_URL: import.meta.env.VITE_SIGNALING_URL ?? DEFAULT_SIGNALING_URL,

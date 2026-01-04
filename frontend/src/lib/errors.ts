@@ -20,6 +20,7 @@ export type LogLevel = "info" | "warning" | "error";
 /**
  * Extract a user-friendly error message from an unknown error
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: error handling requires many branches
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     // Handle specific error types

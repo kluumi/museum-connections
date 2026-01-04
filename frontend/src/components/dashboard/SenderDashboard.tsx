@@ -14,7 +14,6 @@ import {
   VideoOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getErrorMessage, handleError } from "@/lib/errors";
 import { AudioLevelMeter } from "@/components/shared/AudioLevelMeter";
 import {
   ConsoleLog,
@@ -75,6 +74,7 @@ import { useSignaling } from "@/hooks/useSignaling";
 import { useStreamState } from "@/hooks/useStreamState";
 import { useUserMedia } from "@/hooks/useUserMedia";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { getErrorMessage, handleError } from "@/lib/errors";
 import { eventBus } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { WebRTCService } from "@/services/webrtc";
@@ -350,7 +350,9 @@ export function SenderDashboard({
           }
         } catch (err) {
           setIsLoadingCamera(false);
-          handleError(err, "Changement de caméra", addLog, { category: "media" });
+          handleError(err, "Changement de caméra", addLog, {
+            category: "media",
+          });
         }
       };
 
@@ -429,7 +431,9 @@ export function SenderDashboard({
             }
           }
         } catch (err) {
-          handleError(err, "Changement de microphone", addLog, { category: "media" });
+          handleError(err, "Changement de microphone", addLog, {
+            category: "media",
+          });
         }
       };
 
@@ -1611,51 +1615,49 @@ export function SenderDashboard({
                   )}
 
                   {/* No Video Overlay - show until video is actually playing */}
-                  {(!localStream || !isVideoReady) && (
-                    <div
-                      className={cn(
-                        "absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted",
-                        !selectedCameraId &&
-                          !isInitializing &&
-                          !isLoadingCamera &&
-                          "cursor-pointer hover:bg-muted/80 transition-colors",
-                      )}
-                      onClick={() => {
-                        // Only clickable when no camera is selected (not during loading)
-                        if (
-                          !selectedCameraId &&
-                          !isInitializing &&
-                          !isLoadingCamera
-                        ) {
-                          setIsSettingsOpen(true);
-                        }
-                      }}
-                    >
-                      {isInitializing ||
+                  {/* Loading state - non-interactive */}
+                  {(!localStream || !isVideoReady) &&
+                    (isInitializing ||
                       isLoadingCamera ||
-                      (selectedCameraId && !isVideoReady) ? (
-                        <>
-                          <div className="rounded-full bg-muted-foreground/10 p-4">
-                            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            Chargement...
-                          </p>
-                        </>
-                      ) : !selectedCameraId ? (
-                        <>
-                          <div className="rounded-full bg-muted-foreground/10 p-4">
-                            <Settings2 className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                          <p className="text-sm text-muted-foreground text-center px-4">
-                            Cliquez ici pour sélectionner
-                            <br />
-                            un périphérique vidéo et/ou audio
-                          </p>
-                        </>
-                      ) : null}
-                    </div>
-                  )}
+                      (selectedCameraId && !isVideoReady)) && (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted">
+                        <div className="rounded-full bg-muted-foreground/10 p-4">
+                          <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Chargement...
+                        </p>
+                      </div>
+                    )}
+                  {/* No camera selected - interactive prompt */}
+                  {(!localStream || !isVideoReady) &&
+                    !selectedCameraId &&
+                    !isInitializing &&
+                    !isLoadingCamera && (
+                      // biome-ignore lint/a11y/useSemanticElements: div needed for absolute positioning overlay
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Ouvrir les paramètres"
+                        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted cursor-pointer hover:bg-muted/80 transition-colors"
+                        onClick={() => setIsSettingsOpen(true)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setIsSettingsOpen(true);
+                          }
+                        }}
+                      >
+                        <div className="rounded-full bg-muted-foreground/10 p-4">
+                          <Settings2 className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <p className="text-sm text-muted-foreground text-center px-4">
+                          Cliquez ici pour sélectionner
+                          <br />
+                          un périphérique vidéo et/ou audio
+                        </p>
+                      </div>
+                    )}
                 </div>
 
                 {/* Control Bar - Merged with video */}

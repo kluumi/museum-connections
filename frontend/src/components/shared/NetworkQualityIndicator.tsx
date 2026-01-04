@@ -111,6 +111,7 @@ export function NetworkQualityIndicator({
 
   const indicator = (
     <div
+      role="img"
       className={cn("flex items-end", sizes.container, className)}
       aria-label={`Qualité réseau: ${config.labelFr} (${qualityScore}/100)`}
     >

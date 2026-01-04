@@ -2,19 +2,22 @@
 // Pattern: Extracted from SenderDashboard to reduce monolith complexity
 
 import { useEffect, useRef, useState } from "react";
-import { handleError } from "@/lib/errors";
 import type { SenderNodeId } from "@/constants/node-ids";
+import { handleError } from "@/lib/errors";
+import type { StreamSlice } from "@/stores";
+import { useSettingsStore } from "@/stores";
 import { useMediaDevices } from "./useMediaDevices";
 import { useUserMedia } from "./useUserMedia";
-import { useSettingsStore } from "@/stores";
-import type { StreamSlice } from "@/stores";
 
 export interface UseSenderMediaOptions {
   nodeId: SenderNodeId;
   videoSettings: StreamSlice["videoSettings"];
   isStreaming: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  addLog: (message: string, level?: "info" | "warning" | "error" | "success") => void;
+  addLog: (
+    message: string,
+    level?: "info" | "warning" | "error" | "success",
+  ) => void;
   onTrackUpdate?: (track: MediaStreamTrack) => Promise<void>;
 }
 
@@ -37,9 +40,14 @@ export interface UseSenderMediaResult {
   localStreamRef: React.MutableRefObject<MediaStream | null>;
 
   // Media control
-  startMedia: (options?: { cameraId?: string; microphoneId?: string }) => Promise<MediaStream | null>;
+  startMedia: (options?: {
+    cameraId?: string;
+    microphoneId?: string;
+  }) => Promise<MediaStream | null>;
   stopMedia: () => void;
-  applyVideoConstraints: ReturnType<typeof useUserMedia>["applyVideoConstraints"];
+  applyVideoConstraints: ReturnType<
+    typeof useUserMedia
+  >["applyVideoConstraints"];
   replaceVideoTrack: ReturnType<typeof useUserMedia>["replaceVideoTrack"];
   replaceAudioTrack: ReturnType<typeof useUserMedia>["replaceAudioTrack"];
 
@@ -138,7 +146,12 @@ export function useSenderMedia({
     });
 
     if (cameraChanged) {
-      console.log("📷 Camera changed from", prevId ?? "none", "to", selectedCameraId);
+      console.log(
+        "📷 Camera changed from",
+        prevId ?? "none",
+        "to",
+        selectedCameraId,
+      );
 
       const doHandleCameraChange = async () => {
         try {
@@ -158,7 +171,9 @@ export function useSenderMedia({
             if (stream && videoRef.current) {
               videoRef.current.srcObject = stream;
             }
-            const cameraName = cameras.find((c) => c.deviceId === selectedCameraId)?.label || selectedCameraId;
+            const cameraName =
+              cameras.find((c) => c.deviceId === selectedCameraId)?.label ||
+              selectedCameraId;
             addLog(`Caméra changée: ${cameraName}`, "info");
           }
           // Already streaming: hot-swap the camera track
@@ -172,7 +187,9 @@ export function useSenderMedia({
               if (onTrackUpdate) {
                 await onTrackUpdate(newTrack);
               }
-              const cameraName = cameras.find((c) => c.deviceId === selectedCameraId)?.label || selectedCameraId;
+              const cameraName =
+                cameras.find((c) => c.deviceId === selectedCameraId)?.label ||
+                selectedCameraId;
               addLog(`Caméra changée: ${cameraName}`, "info");
             }
           }
@@ -181,16 +198,22 @@ export function useSenderMedia({
           await new Promise((resolve) => setTimeout(resolve, 100));
 
           const currentStream = localStreamRef.current;
-          const persistedSettings = useSettingsStore.getState().getVideoSettings(nodeId, selectedCameraId);
+          const persistedSettings = useSettingsStore
+            .getState()
+            .getVideoSettings(nodeId, selectedCameraId);
 
           if (
             currentStream &&
-            (persistedSettings.resolution !== "auto" || persistedSettings.fps !== "auto")
+            (persistedSettings.resolution !== "auto" ||
+              persistedSettings.fps !== "auto")
           ) {
             const result = await applyVideoConstraints(persistedSettings);
             if (result) {
               if (!result.resolutionMatched) {
-                addLog(`${persistedSettings.resolution} non supportée`, "warning");
+                addLog(
+                  `${persistedSettings.resolution} non supportée`,
+                  "warning",
+                );
               }
               if (isStreaming && onTrackUpdate) {
                 await onTrackUpdate(result.track);
@@ -199,7 +222,9 @@ export function useSenderMedia({
           }
         } catch (err) {
           setIsLoadingCamera(false);
-          handleError(err, "Changement de caméra", addLog, { category: "media" });
+          handleError(err, "Changement de caméra", addLog, {
+            category: "media",
+          });
         }
       };
 
@@ -251,7 +276,9 @@ export function useSenderMedia({
               if (stream && videoRef.current) {
                 videoRef.current.srcObject = stream;
               }
-              const micName = microphones.find((m) => m.deviceId === selectedMicrophoneId)?.label || selectedMicrophoneId;
+              const micName =
+                microphones.find((m) => m.deviceId === selectedMicrophoneId)
+                  ?.label || selectedMicrophoneId;
               addLog(`Microphone changé: ${micName}`, "info");
             }
           }
@@ -262,12 +289,16 @@ export function useSenderMedia({
 
             if (newTrack && onTrackUpdate) {
               await onTrackUpdate(newTrack);
-              const micName = microphones.find((m) => m.deviceId === selectedMicrophoneId)?.label || selectedMicrophoneId;
+              const micName =
+                microphones.find((m) => m.deviceId === selectedMicrophoneId)
+                  ?.label || selectedMicrophoneId;
               addLog(`Microphone changé: ${micName}`, "info");
             }
           }
         } catch (err) {
-          handleError(err, "Changement de microphone", addLog, { category: "media" });
+          handleError(err, "Changement de microphone", addLog, {
+            category: "media",
+          });
         }
       };
 
@@ -290,18 +321,27 @@ export function useSenderMedia({
 
   // Apply persisted video settings when stream first becomes available
   useEffect(() => {
-    if (!localStream || !selectedCameraId || hasAppliedInitialSettings.current) {
+    if (
+      !localStream ||
+      !selectedCameraId ||
+      hasAppliedInitialSettings.current
+    ) {
       return;
     }
 
-    const persistedSettings = useSettingsStore.getState().getVideoSettings(nodeId, selectedCameraId);
+    const persistedSettings = useSettingsStore
+      .getState()
+      .getVideoSettings(nodeId, selectedCameraId);
     console.log("📹 Initial settings check:", {
       hasStream: !!localStream,
       cameraId: selectedCameraId,
       persistedSettings,
     });
 
-    if (persistedSettings.resolution !== "auto" || persistedSettings.fps !== "auto") {
+    if (
+      persistedSettings.resolution !== "auto" ||
+      persistedSettings.fps !== "auto"
+    ) {
       console.log("📹 Applying initial persisted settings:", persistedSettings);
       hasAppliedInitialSettings.current = true;
 

@@ -166,7 +166,9 @@ export class WebRTCService {
 
     // Increment session ID to invalidate any pending ICE candidates from previous session
     this.sessionId++;
-    console.log(`🔄 New WebRTC session ${this.sessionId} for ${this.remoteNodeId}`);
+    console.log(
+      `🔄 New WebRTC session ${this.sessionId} for ${this.remoteNodeId}`,
+    );
 
     this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
     this.remoteDescriptionSet = false;
@@ -737,10 +739,7 @@ export class WebRTCService {
       const metrics = this.parseStats(stats);
 
       // Debug: log metrics periodically (only in dev mode, first collection and every 10th)
-      if (
-        import.meta.env.DEV &&
-        (!this.previousStats || Math.random() < 0.1)
-      ) {
+      if (import.meta.env.DEV && (!this.previousStats || Math.random() < 0.1)) {
         console.log("📊 Collected metrics:", {
           fps: metrics.video.fps,
           width: metrics.video.width,

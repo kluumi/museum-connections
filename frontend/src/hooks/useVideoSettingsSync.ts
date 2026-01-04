@@ -2,8 +2,8 @@
 // Pattern: Extracted from SenderDashboard to reduce monolith complexity
 
 import { useEffect, useRef } from "react";
-import type { StreamSlice } from "@/stores";
 import type { WebRTCService } from "@/services/webrtc";
+import type { StreamSlice } from "@/stores";
 import type { useWebRTC } from "./useWebRTC";
 
 export interface UseVideoSettingsSyncOptions {
@@ -14,11 +14,16 @@ export interface UseVideoSettingsSyncOptions {
     track: MediaStreamTrack;
     resolutionMatched: boolean;
   } | null>;
-  addLog: (message: string, level?: "info" | "warning" | "error" | "success") => void;
+  addLog: (
+    message: string,
+    level?: "info" | "warning" | "error" | "success",
+  ) => void;
   setIsVideoReady: (ready: boolean) => void;
   onTrackUpdate?: (track: MediaStreamTrack) => Promise<void>;
   // WebRTC connections for applying bitrate/codec
-  webrtcConnectionsRef: React.RefObject<Map<string, ReturnType<typeof useWebRTC>>>;
+  webrtcConnectionsRef: React.RefObject<
+    Map<string, ReturnType<typeof useWebRTC>>
+  >;
   operatorConnectionsRef: React.RefObject<Map<string, WebRTCService>>;
 }
 
@@ -70,10 +75,13 @@ export function useVideoSettingsSync({
     prevVideoSettingsRef.current = videoSettings;
 
     if (resolutionChanged || fpsChanged) {
-      console.log("📊 Video settings changed, replacing track with new constraints:", {
-        resolution: videoSettings.resolution,
-        fps: videoSettings.fps,
-      });
+      console.log(
+        "📊 Video settings changed, replacing track with new constraints:",
+        {
+          resolution: videoSettings.resolution,
+          fps: videoSettings.fps,
+        },
+      );
 
       const doApplyConstraints = async () => {
         setIsVideoReady(false);
@@ -96,8 +104,12 @@ export function useVideoSettingsSync({
     // Check if bitrate changed - apply to all WebRTC connections (only when streaming)
     if (isStreaming && prev.bitrate !== videoSettings.bitrate) {
       console.log("📊 Bitrate changed:", videoSettings.bitrate);
-      const obsConnections = Array.from(webrtcConnectionsRef.current?.entries() ?? []);
-      const operatorConnections = Array.from(operatorConnectionsRef.current?.entries() ?? []);
+      const obsConnections = Array.from(
+        webrtcConnectionsRef.current?.entries() ?? [],
+      );
+      const operatorConnections = Array.from(
+        operatorConnectionsRef.current?.entries() ?? [],
+      );
       for (const [, webrtc] of obsConnections) {
         webrtc.setVideoBitrate(videoSettings.bitrate);
       }
@@ -110,8 +122,12 @@ export function useVideoSettingsSync({
     // Note: Codec change requires renegotiation to take effect
     if (isStreaming && prev.codec !== videoSettings.codec) {
       console.log("📊 Codec changed:", videoSettings.codec);
-      const obsConnections = Array.from(webrtcConnectionsRef.current?.entries() ?? []);
-      const operatorConnections = Array.from(operatorConnectionsRef.current?.entries() ?? []);
+      const obsConnections = Array.from(
+        webrtcConnectionsRef.current?.entries() ?? [],
+      );
+      const operatorConnections = Array.from(
+        operatorConnectionsRef.current?.entries() ?? [],
+      );
       for (const [, webrtc] of obsConnections) {
         webrtc.setPreferredCodec(videoSettings.codec);
         // Trigger renegotiation to apply the new codec

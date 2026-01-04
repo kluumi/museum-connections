@@ -126,6 +126,8 @@ export function WebRTCProvider({
       }
       connectionsRef.current.clear();
     };
+    // handleSignalingMessage is defined below but stable due to useCallback
+    // biome-ignore lint/correctness/useExhaustiveDependencies: handleSignalingMessage is stable
   }, [nodeId, autoConnect, setNodeId, setSignalingState]);
 
   // Handle signaling messages
