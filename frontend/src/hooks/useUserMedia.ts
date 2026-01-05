@@ -46,6 +46,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
     (overrides?: {
       cameraId?: string;
       microphoneId?: string;
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Builds constraints from video settings and device selections
     }): MediaStreamConstraints => {
       const video: MediaTrackConstraints = {};
       const audio: MediaTrackConstraints = {};
@@ -298,6 +299,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
   // Apply video constraints by replacing the video track with a new one
   // This is more reliable than applyConstraints() which often doesn't work on active tracks
   const applyVideoConstraints = useCallback(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex track replacement logic for applying constraints
     async (settings: VideoSettings): Promise<ApplyConstraintsResult | null> => {
       console.log("📹 applyVideoConstraints called with:", settings);
       console.log(

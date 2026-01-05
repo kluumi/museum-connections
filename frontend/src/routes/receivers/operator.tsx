@@ -62,6 +62,7 @@ function saveOperatorSettings(settings: OperatorSettings): void {
   localStorage.setItem(OPERATOR_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Main operator dashboard with multi-source monitoring
 function OperatorDashboard() {
   // Generate a unique ID for this operator instance (allows multiple tabs)
   const [nodeId] = useState(() => generateOperatorNodeId());

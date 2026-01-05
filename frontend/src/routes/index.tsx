@@ -433,8 +433,8 @@ function ObsReceiverCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <ul className="space-y-2 text-sm text-muted-foreground">
-          {details.map((detail, i) => (
-            <li key={i} className="flex items-center gap-2">
+          {details.map((detail) => (
+            <li key={detail} className="flex items-center gap-2">
               <div className={cn("h-1.5 w-1.5 rounded-full", styles.dot)} />
               {detail}
             </li>

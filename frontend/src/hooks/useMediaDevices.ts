@@ -58,6 +58,7 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
 
   // Detect camera capabilities by getting a stream and reading track capabilities
   const detectCameraCapabilities = useCallback(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Camera capabilities detection with fallbacks
     async (deviceId: string): Promise<CameraCapabilities | null> => {
       try {
         console.log("📹 Detecting capabilities for camera:", deviceId);
@@ -175,6 +176,7 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
   const enumerateDevices = useCallback(async (): Promise<{
     cameraId: string | null;
     microphoneId: string | null;
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Device enumeration with permission handling and default selection
   }> => {
     setDevicesLoading(true);
     setDevicesError(null);
@@ -294,7 +296,10 @@ export function useMediaDevices({ nodeId }: UseMediaDevicesOptions) {
         micToSelect = persisted.microphoneId;
       } else if (defaultMicrophoneId && micIds.includes(defaultMicrophoneId)) {
         // Priority 2: Use browser's default microphone (first-time user)
-        console.log("🎤 Using browser default microphone:", defaultMicrophoneId);
+        console.log(
+          "🎤 Using browser default microphone:",
+          defaultMicrophoneId,
+        );
         micToSelect = defaultMicrophoneId;
         // Persist this selection so it's remembered next time
         persistDevices(nodeId, { microphoneId: defaultMicrophoneId });

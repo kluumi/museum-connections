@@ -105,6 +105,7 @@ const accentStyles = {
   },
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Main sender dashboard with streaming, device management, and WebRTC
 export function SenderDashboard({
   nodeId,
   accentColor,
@@ -275,6 +276,7 @@ export function SenderDashboard({
         selectedCameraId,
       );
 
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Camera change with hot-swap and track replacement
       const doHandleCameraChange = async () => {
         try {
           // Reset video ready state when camera changes
@@ -391,6 +393,7 @@ export function SenderDashboard({
     });
 
     if (micChanged) {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mic change with hot-swap during stream
       const doHandleMicChange = async () => {
         try {
           // Not streaming: restart preview with new mic (need camera too for video preview)
@@ -501,6 +504,7 @@ export function SenderDashboard({
   // Apply video settings when they change (works for both preview and streaming)
   const prevVideoSettingsRef = useRef(videoSettings);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Video settings sync with track replacement and WebRTC renegotiation
   useEffect(() => {
     const prev = prevVideoSettingsRef.current;
 
@@ -647,6 +651,7 @@ export function SenderDashboard({
   // Signaling - auto-connects on mount
   const signaling = useSignaling(nodeId, {
     autoConnect: true,
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Message handler for all signaling events
     onMessage: (message) => {
       // Handle stream_started echo - just log it, state is already transitioned
       // when OBS connects (in the effect above)
@@ -833,6 +838,19 @@ export function SenderDashboard({
         service.close();
       }
       operatorConnectionsRef.current.clear();
+    };
+  }, []);
+
+  // Clean up MediaStream tracks on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Stop all tracks in the local stream
+      if (localStreamRef.current) {
+        console.log("🧹 Stopping MediaStream tracks on unmount");
+        for (const track of localStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
     };
   }, []);
 

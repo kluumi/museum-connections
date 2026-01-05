@@ -44,6 +44,7 @@ export function useVideoSettingsSync({
 }: UseVideoSettingsSyncOptions): void {
   const prevVideoSettingsRef = useRef(videoSettings);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Syncs video settings changes to WebRTC connections
   useEffect(() => {
     const prev = prevVideoSettingsRef.current;
 

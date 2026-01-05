@@ -84,6 +84,7 @@ function formatBitrate(kbps: number): string {
   return `${kbps.toFixed(1)} kbps`;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Video panel with many interactive features and conditional states
 export function VideoPanel({
   title,
   emoji,
