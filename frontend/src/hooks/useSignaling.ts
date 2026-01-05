@@ -1,5 +1,37 @@
-// useSignaling - Hook bridging SignalingService to React
-// Pattern: Composable hooks - bridges service layer to React
+/**
+ * useSignaling - React hook for WebSocket signaling connection.
+ *
+ * Bridges the SignalingService to React with automatic lifecycle management.
+ * Handles connection, disconnection, message routing, and state synchronization.
+ *
+ * @module hooks/useSignaling
+ * @example
+ * ```typescript
+ * function SenderDashboard() {
+ *   const signaling = useSignaling('nantes', {
+ *     autoConnect: true,
+ *     onMessage: (msg) => {
+ *       if (msg.type === 'request_offer') {
+ *         // Handle offer request from receiver
+ *       }
+ *     },
+ *   });
+ *
+ *   // Check connection state
+ *   if (!signaling.isConnected) {
+ *     return <div>Connecting...</div>;
+ *   }
+ *
+ *   // Send stream notifications
+ *   const startStream = () => {
+ *     signaling.notifyStreamStarted();
+ *   };
+ *
+ *   // Send WebRTC signaling messages
+ *   signaling.sendOffer('obs_paris', offer);
+ * }
+ * ```
+ */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type NodeId, SignalingState } from "@/constants";
@@ -10,29 +42,69 @@ import type { ServerToClientMessage, StreamErrorType } from "@/types";
 
 type MessageHandler = (message: ServerToClientMessage) => void;
 
-interface UseSignalingOptions {
+export interface UseSignalingOptions {
   autoConnect?: boolean;
   onMessage?: MessageHandler;
 }
 
+/** Return type for useSignaling hook */
+export interface UseSignalingReturn {
+  // State
+  state: SignalingState;
+  isConnected: boolean;
+  connectedPeers: NodeId[];
+  blockedMessage: string | null;
+
+  // Service access (for advanced use)
+  service: SignalingService | null;
+
+  // Actions
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  send: (message: Parameters<SignalingService["send"]>[0]) => void;
+  sendOffer: (to: NodeId, offer: RTCSessionDescriptionInit) => void;
+  sendAnswer: (to: NodeId, answer: RTCSessionDescriptionInit) => void;
+  sendCandidate: (to: NodeId, candidate: RTCIceCandidateInit) => void;
+  requestOffer: (from: NodeId) => void;
+  notifyStreamStarting: () => void;
+  notifyStreamStopping: () => void;
+  notifyStreamStarted: () => void;
+  notifyStreamStopped: (
+    reason?: "manual" | "page_closed" | "network_lost",
+  ) => void;
+  notifyStreamRestored: () => void;
+  notifyPageOpened: () => void;
+  sendStreamControl: (target: NodeId, action: "start" | "stop") => void;
+  sendStreamHeartbeat: () => void;
+  notifyStreamError: (error: StreamErrorType, message: string) => void;
+}
+
 /**
- * Hook for managing signaling connection
+ * React hook for managing WebSocket signaling connection.
+ *
+ * Provides reactive state and methods for signaling server communication.
+ * Automatically connects on mount (configurable) and cleans up on unmount.
+ *
+ * @param nodeId - Unique identifier for this node (e.g., 'nantes', 'paris')
+ * @param options - Configuration options
+ * @param options.autoConnect - Whether to connect automatically on mount (default: true)
+ * @param options.onMessage - Callback for incoming signaling messages
+ * @returns Signaling state and methods
  */
 export function useSignaling(
   nodeId: NodeId,
   options: UseSignalingOptions = {},
-) {
+): UseSignalingReturn {
   const { autoConnect = true, onMessage } = options;
 
-  const {
-    signalingState,
-    connectedPeers,
-    setNodeId,
-    setSignalingState,
-    setConnectedPeers,
-    addConnectedPeer,
-    removeConnectedPeer,
-  } = useStore();
+  // Use individual selectors for stable references
+  const signalingState = useStore((s) => s.signalingState);
+  const connectedPeers = useStore((s) => s.connectedPeers);
+  const setNodeId = useStore((s) => s.setNodeId);
+  const setSignalingState = useStore((s) => s.setSignalingState);
+  const setConnectedPeers = useStore((s) => s.setConnectedPeers);
+  const addConnectedPeer = useStore((s) => s.addConnectedPeer);
+  const removeConnectedPeer = useStore((s) => s.removeConnectedPeer);
 
   const serviceRef = useRef<SignalingService | null>(null);
   const messageHandlerRef = useRef<MessageHandler | undefined>(onMessage);

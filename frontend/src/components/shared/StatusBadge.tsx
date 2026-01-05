@@ -6,6 +6,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
+import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -26,7 +27,7 @@ interface ConnectionBadgeProps {
 const connectedStyle =
   "border-emerald-500/30 bg-emerald-500/10 text-emerald-500";
 
-export function ConnectionBadge({
+export const ConnectionBadge = memo(function ConnectionBadge({
   connected,
   label,
   icon: Icon,
@@ -50,9 +51,13 @@ export function ConnectionBadge({
   );
 
   return badge;
-}
+});
 
-export function SignalingBadge({ connected }: { connected: boolean }) {
+export const SignalingBadge = memo(function SignalingBadge({
+  connected,
+}: {
+  connected: boolean;
+}) {
   const label = connected ? "Serveur connecté" : "Serveur hors ligne";
   const Icon = connected ? Wifi : WifiOff;
 
@@ -95,7 +100,7 @@ export function SignalingBadge({ connected }: { connected: boolean }) {
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
 interface StreamingBadgeProps {
   state: ConnectionState;
@@ -111,7 +116,7 @@ interface StreamingBadgeProps {
  * - Connexion: negotiating WebRTC
  * - Arrêté: not streaming
  */
-export function StreamingBadge({
+export const StreamingBadge = memo(function StreamingBadge({
   state,
   targetName,
   manuallyStopped = false,
@@ -188,7 +193,7 @@ export function StreamingBadge({
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
 // Keep old name for backwards compatibility
 export const WebRTCBadge = StreamingBadge;
@@ -205,7 +210,7 @@ interface ReceiverStatusBadgeProps {
  * - Nantes sender → OBS Paris
  * - Paris sender → OBS Nantes
  */
-export function ReceiverStatusBadge({
+export const ReceiverStatusBadge = memo(function ReceiverStatusBadge({
   senderNodeId,
   connectedPeers,
 }: ReceiverStatusBadgeProps) {
@@ -245,4 +250,4 @@ export function ReceiverStatusBadge({
       </TooltipContent>
     </Tooltip>
   );
-}
+});

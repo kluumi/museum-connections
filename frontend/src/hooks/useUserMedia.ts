@@ -2,6 +2,7 @@
 // Pattern: Composable hooks with single responsibility
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mediaLogger } from "@/lib/logger";
 import { useStore } from "@/stores";
 import {
   RESOLUTION_CONSTRAINTS,
@@ -9,7 +10,7 @@ import {
   type VideoSettings,
 } from "@/types";
 
-interface UseUserMediaOptions {
+export interface UseUserMediaOptions {
   autoStart?: boolean;
   videoSettings?: VideoSettings;
 }
@@ -24,13 +25,42 @@ export interface ApplyConstraintsResult {
   fpsMatched: boolean;
 }
 
+/** Return type for useUserMedia hook */
+export interface UseUserMediaReturn {
+  stream: MediaStream | null;
+  isLoading: boolean;
+  error: Error | null;
+  start: (overrides?: {
+    cameraId?: string;
+    microphoneId?: string;
+  }) => Promise<MediaStream | null>;
+  stop: () => void;
+  restart: () => Promise<MediaStream | null>;
+  replaceVideoTrack: (deviceId: string) => Promise<MediaStreamTrack | null>;
+  replaceAudioTrack: (deviceId: string) => Promise<MediaStreamTrack | null>;
+  applyVideoConstraints: (
+    settings: VideoSettings,
+  ) => Promise<ApplyConstraintsResult | null>;
+  toggleVideo: (enabled: boolean) => void;
+  toggleAudio: (enabled: boolean) => void;
+  /**
+   * Adopt an externally-created stream (e.g., from enumerateDevices).
+   * This sets it as the local stream and tracks it for future operations.
+   */
+  adoptStream: (stream: MediaStream) => void;
+}
+
 /**
  * Hook for acquiring and managing local media streams
  */
-export function useUserMedia(options: UseUserMediaOptions = {}) {
+export function useUserMedia(
+  options: UseUserMediaOptions = {},
+): UseUserMediaReturn {
   const { autoStart = false, videoSettings } = options;
 
-  const { localStream, setLocalStream } = useStore();
+  // Use individual selectors for stable references
+  const localStream = useStore((s) => s.localStream);
+  const setLocalStream = useStore((s) => s.setLocalStream);
 
   // Read device IDs from runtime store (set by useMediaDevices)
   const selectedCameraId = useStore((s) => s.selectedCameraId);
@@ -67,8 +97,8 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
       if (videoSettings?.resolution && videoSettings.resolution !== "auto") {
         // Specific resolution requested - use exact to force it
         const res = RESOLUTION_CONSTRAINTS[videoSettings.resolution];
-        console.log(
-          "📹 buildConstraints - Resolution lookup:",
+        mediaLogger.debug(
+          "buildConstraints - Resolution lookup:",
           videoSettings.resolution,
           "->",
           res,
@@ -77,8 +107,8 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
           video.width = { exact: res.width };
           video.height = { exact: res.height };
         } else {
-          console.warn(
-            "📹 ⚠️ Unknown resolution in buildConstraints:",
+          mediaLogger.warn(
+            "Unknown resolution in buildConstraints:",
             videoSettings.resolution,
           );
         }
@@ -87,7 +117,9 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         // Without this, browser defaults to 640x480 VGA
         video.width = { ideal: 1920 };
         video.height = { ideal: 1080 };
-        console.log("📹 buildConstraints - Auto resolution: ideal 1920x1080");
+        mediaLogger.debug(
+          "buildConstraints - Auto resolution: ideal 1920x1080",
+        );
       }
 
       // FPS constraints
@@ -121,13 +153,13 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         const constraints = buildConstraints(overrides);
         const effectiveCameraId = overrides?.cameraId ?? selectedCameraId;
         const effectiveMicId = overrides?.microphoneId ?? selectedMicrophoneId;
-        console.log(
-          "📹 Requesting media with constraints:",
+        mediaLogger.debug(
+          "Requesting media with constraints:",
           JSON.stringify(constraints, null, 2),
         );
-        console.log("📹 Video settings:", videoSettings);
-        console.log("📹 Selected camera ID (effective):", effectiveCameraId);
-        console.log("📹 Selected mic ID (effective):", effectiveMicId);
+        mediaLogger.debug("Video settings:", videoSettings);
+        mediaLogger.debug("Selected camera ID (effective):", effectiveCameraId);
+        mediaLogger.debug("Selected mic ID (effective):", effectiveMicId);
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         streamRef.current = stream;
@@ -137,7 +169,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           const settings = videoTrack.getSettings();
-          console.log("✅ Media stream acquired - actual video settings:", {
+          mediaLogger.info("Media stream acquired - actual video settings:", {
             width: settings.width,
             height: settings.height,
             frameRate: settings.frameRate,
@@ -147,7 +179,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
 
         return stream;
       } catch (err) {
-        console.error("❌ Failed to acquire media:", err);
+        mediaLogger.error("Failed to acquire media:", err);
         setError(err as Error);
         throw err;
       } finally {
@@ -171,7 +203,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
       }
       streamRef.current = null;
       setLocalStream(null);
-      console.log("⏹️ Media stream stopped");
+      mediaLogger.info("Media stream stopped");
     }
   }, [setLocalStream]);
 
@@ -186,32 +218,37 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
   // NOTE: Does NOT update the store to avoid triggering WebRTC service recreation
   const replaceVideoTrack = useCallback(
     async (deviceId: string): Promise<MediaStreamTrack | null> => {
-      console.log("📹 replaceVideoTrack called with deviceId:", deviceId);
-      console.log("📹 Current stream exists:", !!streamRef.current);
+      mediaLogger.debug("replaceVideoTrack called with deviceId:", deviceId);
+      mediaLogger.debug("Current stream exists:", !!streamRef.current);
 
       if (!streamRef.current) {
-        console.warn("📹 No stream ref - cannot replace track");
+        mediaLogger.warn("No stream ref - cannot replace track");
         return null;
       }
 
       try {
-        console.log("📹 Requesting new video stream...");
+        // Request ideal 1080p so we don't default to 640x480 VGA
+        mediaLogger.debug("Requesting new video stream...");
         const newStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: deviceId } },
+          video: {
+            deviceId: { exact: deviceId },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         });
-        console.log("📹 New stream acquired");
+        mediaLogger.debug("New stream acquired");
 
         const newTrack = newStream.getVideoTracks()[0];
         const oldTrack = streamRef.current.getVideoTracks()[0];
 
-        console.log(
-          "📹 Old track:",
+        mediaLogger.debug(
+          "Old track:",
           oldTrack?.label ?? "none",
           "readyState:",
           oldTrack?.readyState,
         );
-        console.log(
-          "📹 New track:",
+        mediaLogger.debug(
+          "New track:",
           newTrack?.label ?? "none",
           "readyState:",
           newTrack?.readyState,
@@ -224,17 +261,17 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
           // Don't call setLocalStream - we're modifying the same MediaStream in place
           // The video element will automatically show the new track
           // Caller must use WebRTC.replaceTrack() to update peer connections
-          console.log(
-            "✅ Video track replaced in MediaStream:",
+          mediaLogger.info(
+            "Video track replaced in MediaStream:",
             newTrack.label,
           );
           return newTrack;
         }
 
-        console.warn("📹 Could not replace track - missing old or new track");
+        mediaLogger.warn("Could not replace track - missing old or new track");
         return null;
       } catch (err) {
-        console.error("❌ Failed to replace video track:", err);
+        mediaLogger.error("Failed to replace video track:", err);
         setError(err as Error);
         throw err;
       }
@@ -263,12 +300,12 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
           streamRef.current.addTrack(newTrack);
           // Don't call setLocalStream - we're modifying the same MediaStream in place
           // Caller must use WebRTC.replaceTrack() to update peer connections
-          console.log("🔄 Audio track replaced:", newTrack.label);
+          mediaLogger.info("Audio track replaced:", newTrack.label);
           return newTrack;
         }
         return null;
       } catch (err) {
-        console.error("❌ Failed to replace audio track:", err);
+        mediaLogger.error("Failed to replace audio track:", err);
         setError(err as Error);
         throw err;
       }
@@ -296,33 +333,56 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
     }
   }, []);
 
+  // Adopt an externally-created stream (e.g., from enumerateDevices)
+  // This sets it as the local stream so future operations (replaceTrack, etc.) work correctly
+  const adoptStream = useCallback(
+    (stream: MediaStream) => {
+      mediaLogger.info("Adopting external stream:", stream.id);
+      streamRef.current = stream;
+      setLocalStream(stream);
+
+      // Log track info
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        const settings = videoTrack.getSettings();
+        mediaLogger.debug("Adopted stream video track:", {
+          label: videoTrack.label,
+          width: settings.width,
+          height: settings.height,
+          frameRate: settings.frameRate,
+        });
+      }
+    },
+    [setLocalStream],
+  );
+
   // Apply video constraints by replacing the video track with a new one
   // This is more reliable than applyConstraints() which often doesn't work on active tracks
   const applyVideoConstraints = useCallback(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex track replacement logic for applying constraints
     async (settings: VideoSettings): Promise<ApplyConstraintsResult | null> => {
-      console.log("📹 applyVideoConstraints called with:", settings);
-      console.log(
-        "📹 streamRef.current:",
+      mediaLogger.debug("applyVideoConstraints called with:", settings);
+      mediaLogger.debug(
+        "streamRef.current:",
         streamRef.current ? "exists" : "null",
       );
 
       if (!streamRef.current) {
-        console.warn("📹 No stream - cannot apply constraints");
+        mediaLogger.warn("No stream - cannot apply constraints");
         return null;
       }
 
       const oldTrack = streamRef.current.getVideoTracks()[0];
-      console.log("📹 oldTrack:", oldTrack ? oldTrack.label : "null");
+      mediaLogger.debug("oldTrack:", oldTrack ? oldTrack.label : "null");
 
       if (!oldTrack) {
-        console.warn("📹 No video track - cannot apply constraints");
+        mediaLogger.warn("No video track - cannot apply constraints");
         return null;
       }
 
       // Log current settings including the track label (which shows camera name)
       const currentSettings = oldTrack.getSettings();
-      console.log("📹 Current track settings:", {
+      mediaLogger.debug("Current track settings:", {
         label: oldTrack.label, // This shows the camera name like "Logitech MX Brio"
         width: currentSettings.width,
         height: currentSettings.height,
@@ -342,13 +402,13 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
       // exact is the strictest and should work if the camera supports it
       if (settings.resolution !== "auto") {
         const res = RESOLUTION_CONSTRAINTS[settings.resolution];
-        console.log("📹 Resolution lookup:", settings.resolution, "->", res);
+        mediaLogger.debug("Resolution lookup:", settings.resolution, "->", res);
         if (res) {
           videoConstraints.width = { exact: res.width };
           videoConstraints.height = { exact: res.height };
         } else {
-          console.warn(
-            "📹 ⚠️ Unknown resolution:",
+          mediaLogger.warn(
+            "Unknown resolution:",
             settings.resolution,
             "Available:",
             Object.keys(RESOLUTION_CONSTRAINTS),
@@ -365,15 +425,17 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         };
       }
 
-      console.log(
-        "📹 Requesting new stream with constraints:",
+      mediaLogger.debug(
+        "Requesting new stream with constraints:",
         videoConstraints,
       );
 
       // IMPORTANT: Stop the old track BEFORE requesting new stream
       // Some cameras (like Logitech MX Brio) can't provide multiple resolutions simultaneously
       // and will fail with OverconstrainedError if the old stream is still active
-      console.log("📹 Stopping old track before requesting new resolution...");
+      mediaLogger.debug(
+        "Stopping old track before requesting new resolution...",
+      );
       oldTrack.stop();
 
       // Wait for the camera to fully release
@@ -400,8 +462,8 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
               exactResConstraints.frameRate = { ideal: settings.fps };
             }
 
-            console.log(
-              "📹 Trying exact resolution + ideal fps:",
+            mediaLogger.debug(
+              "Trying exact resolution + ideal fps:",
               exactResConstraints,
             );
 
@@ -410,36 +472,36 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
                 video: exactResConstraints,
               });
             } catch (exactErr) {
-              console.warn(
-                "📹 Exact resolution failed:",
+              mediaLogger.warn(
+                "Exact resolution failed:",
                 (exactErr as Error).message,
               );
 
               // Wait longer - USB cameras like MX Brio need significant time to release
-              console.log(
-                "📹 Waiting additional 500ms for camera to fully release...",
+              mediaLogger.debug(
+                "Waiting additional 500ms for camera to fully release...",
               );
               await new Promise((resolve) => setTimeout(resolve, 500));
 
               // Second attempt: try exact again after longer wait
-              console.log("📹 Retrying exact resolution after delay...");
+              mediaLogger.debug("Retrying exact resolution after delay...");
               try {
                 newStream = await navigator.mediaDevices.getUserMedia({
                   video: exactResConstraints,
                 });
               } catch (retryErr) {
-                console.warn(
-                  "📹 Retry also failed:",
+                mediaLogger.warn(
+                  "Retry also failed:",
                   (retryErr as Error).message,
                 );
-                console.warn(
-                  `⚠️ Camera doesn't support ${settings.resolution} - will use closest available`,
+                mediaLogger.warn(
+                  `Camera doesn't support ${settings.resolution} - will use closest available`,
                 );
 
                 // Third attempt: get device with NO resolution constraint, then check what we got
                 // This helps diagnose if the camera is being held by something else
-                console.log(
-                  "📹 Trying device-only (no resolution) to diagnose...",
+                mediaLogger.debug(
+                  "Trying device-only (no resolution) to diagnose...",
                 );
                 const deviceOnlyConstraints: MediaTrackConstraints = {
                   deviceId: { exact: currentSettings.deviceId },
@@ -452,7 +514,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
                 const diagTrack = newStream.getVideoTracks()[0];
                 if (diagTrack) {
                   const diagSettings = diagTrack.getSettings();
-                  console.log("📹 Camera default (no constraints):", {
+                  mediaLogger.debug("Camera default (no constraints):", {
                     width: diagSettings.width,
                     height: diagSettings.height,
                     frameRate: diagSettings.frameRate,
@@ -475,13 +537,13 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
 
         const newTrack = newStream.getVideoTracks()[0];
         if (!newTrack) {
-          console.error("📹 No video track in new stream");
+          mediaLogger.error("No video track in new stream");
           return null;
         }
 
         // Log new track settings and compare with requested
         const newSettings = newTrack.getSettings();
-        console.log("📹 New track label:", newTrack.label); // Shows which camera we got
+        mediaLogger.debug("New track label:", newTrack.label); // Shows which camera we got
         const requestedRes =
           settings.resolution !== "auto"
             ? RESOLUTION_CONSTRAINTS[
@@ -498,7 +560,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
           ? Math.abs((newSettings.frameRate ?? 0) - requestedFps) < 1
           : true;
 
-        console.log("✅ New track acquired:", {
+        mediaLogger.info("New track acquired:", {
           actual: {
             width: newSettings.width,
             height: newSettings.height,
@@ -513,22 +575,22 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         });
 
         if (!resolutionMatched) {
-          console.warn(
-            `⚠️ Resolution mismatch! Requested ${requestedRes?.width}x${requestedRes?.height}, got ${newSettings.width}x${newSettings.height}`,
+          mediaLogger.warn(
+            `Resolution mismatch! Requested ${requestedRes?.width}x${requestedRes?.height}, got ${newSettings.width}x${newSettings.height}`,
           );
         }
         if (!fpsMatched) {
-          console.warn(
-            `⚠️ FPS mismatch! Requested ${requestedFps}, got ${newSettings.frameRate}`,
+          mediaLogger.warn(
+            `FPS mismatch! Requested ${requestedFps}, got ${newSettings.frameRate}`,
           );
-          console.warn("📹 This is often due to USB bandwidth limitations:");
-          console.warn(
-            `   - High-end webcams like Logitech MX Brio are limited to 30fps at 1080p`,
+          mediaLogger.warn("This is often due to USB bandwidth limitations:");
+          mediaLogger.warn(
+            "- High-end webcams like Logitech MX Brio are limited to 30fps at 1080p",
           );
-          console.warn(
-            `   - Try 720p or lower resolution to achieve higher FPS (up to 60fps)`,
+          mediaLogger.warn(
+            "- Try 720p or lower resolution to achieve higher FPS (up to 60fps)",
           );
-          console.warn(`   - USB 2.0 ports limit bandwidth more than USB 3.0`);
+          mediaLogger.warn("- USB 2.0 ports limit bandwidth more than USB 3.0");
         }
 
         // Replace the track in our stream
@@ -536,7 +598,7 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
         streamRef.current.removeTrack(oldTrack);
         streamRef.current.addTrack(newTrack);
 
-        console.log("✅ Video track replaced in MediaStream");
+        mediaLogger.info("Video track replaced in MediaStream");
 
         // Return the result with track and match info so caller can show warnings
         return {
@@ -548,7 +610,37 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
           fpsMatched,
         };
       } catch (err) {
-        console.error("❌ Failed to apply video constraints:", err);
+        mediaLogger.error("Failed to apply video constraints:", err);
+
+        // RECOVERY: If we failed to get a new stream, try to recover by getting
+        // ANY stream from the same camera. This prevents leaving the user with black video.
+        mediaLogger.warn("Attempting recovery - getting default stream from camera...");
+        try {
+          const recoveryStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: currentSettings.deviceId } },
+          });
+          const recoveryTrack = recoveryStream.getVideoTracks()[0];
+          if (recoveryTrack && streamRef.current) {
+            // Remove the stopped old track if still in stream
+            const existingTracks = streamRef.current.getVideoTracks();
+            for (const t of existingTracks) {
+              streamRef.current.removeTrack(t);
+            }
+            streamRef.current.addTrack(recoveryTrack);
+            mediaLogger.info("Recovery successful - video restored with default settings");
+            return {
+              track: recoveryTrack,
+              actualWidth: recoveryTrack.getSettings().width ?? 0,
+              actualHeight: recoveryTrack.getSettings().height ?? 0,
+              actualFps: recoveryTrack.getSettings().frameRate ?? 0,
+              resolutionMatched: false,
+              fpsMatched: false,
+            };
+          }
+        } catch (recoveryErr) {
+          mediaLogger.error("Recovery also failed:", recoveryErr);
+        }
+
         return null;
       }
     },
@@ -584,5 +676,6 @@ export function useUserMedia(options: UseUserMediaOptions = {}) {
     applyVideoConstraints,
     toggleVideo,
     toggleAudio,
+    adoptStream,
   };
 }

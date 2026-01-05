@@ -9,18 +9,9 @@ import {
   Timer,
   Waves,
 } from "lucide-react";
+import { memo, useMemo } from "react";
+import { formatBitrate } from "@/constants/metrics";
 import { StatItem, type TooltipInfo, type WarningSeverity } from "./StatItem";
-
-// Helper function
-function formatBitrate(kbps: number): string {
-  if (kbps >= 1000) {
-    return `${(kbps / 1000).toFixed(1)} Mbps`;
-  }
-  if (kbps >= 1) {
-    return `${Math.round(kbps)} kbps`;
-  }
-  return `${kbps.toFixed(1)} kbps`;
-}
 
 function getSeverity(
   value: number | undefined,
@@ -171,46 +162,58 @@ interface StatsGridProps {
   hideBandwidth?: boolean;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Grid of stats items with severity calculations
-export function StatsGrid({
+export const StatsGrid = memo(function StatsGrid({
   video,
   connection,
   hideBandwidth = false,
 }: StatsGridProps) {
-  const rttSeverity = getSeverity(connection?.rtt, {
-    warning: 150,
-    error: 300,
-  });
-  const packetLossSeverity = getSeverity(video?.packetLoss, {
-    warning: 2,
-    error: 5,
-  });
-  const fpsSeverity = getSeverity(
-    video?.fps,
-    { warning: 24, error: 15 },
-    false,
-  );
-  const jitterSeverity = getSeverity(video?.jitter, { warning: 20, error: 50 });
-  const bitrateSeverity = getSeverity(
-    video?.bitrate,
-    { warning: 1000, error: 500 },
-    false,
-  );
-  const resolutionSeverity = getSeverity(
-    video?.height,
-    { warning: 720, error: 480 },
-    false,
+  // Memoize all severity calculations
+  const severities = useMemo(
+    () => ({
+      rtt: getSeverity(connection?.rtt, { warning: 150, error: 300 }),
+      packetLoss: getSeverity(video?.packetLoss, { warning: 2, error: 5 }),
+      fps: getSeverity(video?.fps, { warning: 24, error: 15 }, false),
+      jitter: getSeverity(video?.jitter, { warning: 20, error: 50 }),
+      bitrate: getSeverity(
+        video?.bitrate,
+        { warning: 1000, error: 500 },
+        false,
+      ),
+      resolution: getSeverity(
+        video?.height,
+        { warning: 720, error: 480 },
+        false,
+      ),
+      framesDropped: getSeverity(video?.framesDropped, {
+        warning: 10,
+        error: 50,
+      }),
+    }),
+    [
+      connection?.rtt,
+      video?.packetLoss,
+      video?.fps,
+      video?.jitter,
+      video?.bitrate,
+      video?.height,
+      video?.framesDropped,
+    ],
   );
 
-  const availableBandwidth =
-    connection?.availableOutgoingBitrate ||
-    connection?.availableIncomingBitrate ||
-    0;
-  const bandwidthSeverity = getSeverity(
-    availableBandwidth,
-    { warning: 2000, error: 1000 },
-    false,
-  );
+  // Memoize bandwidth calculation
+  const { availableBandwidth, bandwidthSeverity } = useMemo(() => {
+    const bw =
+      connection?.availableOutgoingBitrate ||
+      connection?.availableIncomingBitrate ||
+      0;
+    return {
+      availableBandwidth: bw,
+      bandwidthSeverity: getSeverity(bw, { warning: 2000, error: 1000 }, false),
+    };
+  }, [
+    connection?.availableOutgoingBitrate,
+    connection?.availableIncomingBitrate,
+  ]);
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -218,7 +221,7 @@ export function StatsGrid({
         icon={Timer}
         label="Latence (RTT)"
         value={connection?.rtt ? `${connection.rtt.toFixed(0)} ms` : "-"}
-        severity={rttSeverity}
+        severity={severities.rtt}
         tooltip={TOOLTIPS.rtt}
       />
       <StatItem
@@ -231,7 +234,7 @@ export function StatsGrid({
               ? "Calcul..."
               : "-"
         }
-        severity={bitrateSeverity}
+        severity={severities.bitrate}
         tooltip={TOOLTIPS.bitrate}
       />
       {!hideBandwidth && (
@@ -250,7 +253,7 @@ export function StatsGrid({
         icon={MonitorPlay}
         label="Framerate"
         value={video?.fps ? `${Math.round(video.fps)} fps` : "-"}
-        severity={fpsSeverity}
+        severity={severities.fps}
         tooltip={TOOLTIPS.fps}
       />
       <StatItem
@@ -261,7 +264,7 @@ export function StatsGrid({
             ? `${video.packetLoss.toFixed(1)}%`
             : "-"
         }
-        severity={packetLossSeverity}
+        severity={severities.packetLoss}
         tooltip={TOOLTIPS.packetLoss}
       />
       <StatItem
@@ -270,7 +273,7 @@ export function StatsGrid({
         value={
           video?.jitter !== undefined ? `${video.jitter.toFixed(1)} ms` : "-"
         }
-        severity={jitterSeverity}
+        severity={severities.jitter}
         tooltip={TOOLTIPS.jitter}
       />
       <StatItem
@@ -280,7 +283,7 @@ export function StatsGrid({
           video?.width && video?.height ? `${video.width}x${video.height}` : "-"
         }
         subValue={video?.codec ? `(${video.codec})` : undefined}
-        severity={resolutionSeverity}
+        severity={severities.resolution}
         tooltip={TOOLTIPS.resolution}
       />
       <StatItem
@@ -291,7 +294,7 @@ export function StatsGrid({
             ? video.framesDropped.toString()
             : "-"
         }
-        severity={getSeverity(video?.framesDropped, { warning: 10, error: 50 })}
+        severity={severities.framesDropped}
         tooltip={TOOLTIPS.framesDropped}
       />
       <StatItem
@@ -313,4 +316,4 @@ export function StatsGrid({
       />
     </div>
   );
-}
+});

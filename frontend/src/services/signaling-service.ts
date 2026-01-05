@@ -4,6 +4,7 @@
 import { CONFIG } from "@/config";
 import { type NodeId, SignalingState } from "@/constants";
 import { eventBus } from "@/lib/events";
+import { signalingLogger } from "@/lib/logger";
 import { applyJitter } from "@/lib/utils";
 import type {
   ClientToServerMessage,
@@ -16,21 +17,60 @@ type MessageHandler = (message: ServerToClientMessage) => void;
 type StateChangeHandler = (state: SignalingState) => void;
 type Unsubscribe = () => void;
 
+/**
+ * Configuration options for SignalingService
+ */
 export interface SignalingServiceOptions {
+  /** WebSocket server URL. Defaults to CONFIG.SIGNALING_URL */
   url?: string;
+  /** Reconnection behavior configuration */
   reconnect?: {
+    /** Initial delay before first reconnection attempt (ms). Default: 1000 */
     initialDelay?: number;
+    /** Maximum delay between reconnection attempts (ms). Default: 30000 */
     maxDelay?: number;
+    /** Multiplier for exponential backoff. Default: 1.5 */
     multiplier?: number;
   };
+  /** Heartbeat/keep-alive configuration */
   heartbeat?: {
+    /** Interval between heartbeat pings (ms). Default: 10000 */
     interval?: number;
+    /** Timeout waiting for pong response (ms). Default: 5000 */
     timeout?: number;
   };
 }
 
 /**
- * WebSocket signaling service with automatic reconnection and heartbeat
+ * WebSocket signaling service for WebRTC peer connection negotiation.
+ *
+ * Handles the signaling channel between peers for exchanging SDP offers/answers
+ * and ICE candidates. Includes automatic reconnection with exponential backoff
+ * and heartbeat monitoring for connection health.
+ *
+ * @example
+ * ```typescript
+ * const signaling = new SignalingService('nantes');
+ *
+ * // Subscribe to state changes
+ * signaling.onStateChange((state) => {
+ *   console.log('Connection state:', state);
+ * });
+ *
+ * // Subscribe to incoming messages
+ * signaling.onMessage((message) => {
+ *   if (message.type === 'offer') {
+ *     // Handle WebRTC offer
+ *   }
+ * });
+ *
+ * // Connect and send messages
+ * await signaling.connect();
+ * signaling.sendOffer(targetNodeId, offer);
+ *
+ * // Clean up when done
+ * signaling.destroy();
+ * ```
  */
 export class SignalingService {
   private ws: WebSocket | null = null;
@@ -46,6 +86,7 @@ export class SignalingService {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private intentionallyClosed = false;
   private blockedDuplicate = false; // Set when server rejects due to duplicate sender
+  private _blockedMessage: string | null = null; // Error message when blocked
 
   // Heartbeat state
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
@@ -101,6 +142,13 @@ export class SignalingService {
   }
 
   /**
+   * Error message when connection is blocked (e.g., duplicate node)
+   */
+  get blockedMessage(): string | null {
+    return this._blockedMessage;
+  }
+
+  /**
    * Connect to the signaling server
    */
   connect(): Promise<void> {
@@ -108,6 +156,17 @@ export class SignalingService {
       if (this.ws?.readyState === WebSocket.OPEN) {
         resolve();
         return;
+      }
+
+      // Clean up any existing WebSocket before creating a new one
+      // This prevents duplicate event listeners if connect() is called multiple times
+      if (this.ws) {
+        this.ws.removeEventListener("message", this.handleMessage);
+        this.ws.removeEventListener("close", this.handleClose);
+        if (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close();
+        }
+        this.ws = null;
       }
 
       this.intentionallyClosed = false;
@@ -159,7 +218,11 @@ export class SignalingService {
    */
   send(message: ClientToServerMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("⚠️ Cannot send message: WebSocket not connected");
+      signalingLogger.warn("Cannot send message: WebSocket not connected", {
+        type: message.type,
+        wsExists: !!this.ws,
+        wsState: this.ws?.readyState,
+      });
       return;
     }
 
@@ -169,6 +232,12 @@ export class SignalingService {
       from: this.nodeId,
     };
 
+    // Only log non-candidate messages at debug level (candidates are too frequent)
+    if (message.type !== "candidate") {
+      signalingLogger.debug(`Sending message: ${message.type}`, {
+        target: "target" in message ? message.target : undefined,
+      });
+    }
     this.ws.send(JSON.stringify(messageWithFrom));
   }
 
@@ -290,7 +359,13 @@ export class SignalingService {
   // Private methods
 
   private handleOpen = (): void => {
-    console.log("✅ Signaling connected");
+    // Guard against stale callback after cleanup (React StrictMode)
+    if (!this.ws || this.intentionallyClosed) {
+      signalingLogger.debug("handleOpen called but ws is null or intentionally closed, ignoring");
+      return;
+    }
+
+    signalingLogger.info("Connected");
     this.reconnectAttempt = 0;
     this.reconnectDelay = CONFIG.RECONNECT.INITIAL_DELAY;
 
@@ -316,9 +391,10 @@ export class SignalingService {
 
       // Handle login_error - duplicate sender blocked
       if (message.type === "login_error") {
-        console.error("❌ Login rejected:", message.message);
+        signalingLogger.error("Login rejected:", message.message);
         if (message.error === "already_connected") {
           this.blockedDuplicate = true;
+          this._blockedMessage = message.message;
           eventBus.emit("signaling:blocked", {
             nodeId: this.nodeId,
             reason: "already_connected",
@@ -334,16 +410,18 @@ export class SignalingService {
         try {
           handler(message as ServerToClientMessage);
         } catch (error) {
-          console.error("Error in message handler:", error);
+          signalingLogger.error("Error in message handler:", error);
         }
       }
     } catch (error) {
-      console.error("Failed to parse signaling message:", error);
+      signalingLogger.error("Failed to parse signaling message:", error);
     }
   };
 
   private handleClose = (event: CloseEvent): void => {
-    console.log("🔌 Signaling disconnected", event.code, event.reason);
+    signalingLogger.info(
+      `Disconnected (${event.code}: ${event.reason || "no reason"})`,
+    );
     this.cleanup();
 
     if (this.intentionallyClosed || this.blockedDuplicate) {
@@ -356,7 +434,7 @@ export class SignalingService {
   };
 
   private handleError = (error: Error): void => {
-    console.error("❌ Signaling error:", error);
+    signalingLogger.error("Error:", error);
     eventBus.emit("signaling:error", { nodeId: this.nodeId, error });
   };
 
@@ -368,7 +446,7 @@ export class SignalingService {
       try {
         handler(state);
       } catch (error) {
-        console.error("Error in state change handler:", error);
+        signalingLogger.error("Error in state change handler:", error);
       }
     }
   }
@@ -381,8 +459,8 @@ export class SignalingService {
     // Apply jitter to prevent synchronized reconnection storms
     const delay = applyJitter(baseDelay, CONFIG.RECONNECT.JITTER);
 
-    console.log(
-      `🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`,
+    signalingLogger.info(
+      `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`,
     );
     this.setState(SignalingState.RECONNECTING);
 
@@ -425,7 +503,7 @@ export class SignalingService {
   private startHeartbeatTimeout(): void {
     this.clearHeartbeatTimeout();
     this.heartbeatTimeout = setTimeout(() => {
-      console.warn("⚠️ Heartbeat timeout - closing connection");
+      signalingLogger.warn("Heartbeat timeout - closing connection");
       this.ws?.close();
     }, this.heartbeatTimeoutMs);
   }

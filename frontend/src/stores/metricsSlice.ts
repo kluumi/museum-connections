@@ -53,28 +53,28 @@ export const createMetricsSlice: StateCreator<
       const newMetrics = new Map(state.peerMetrics);
       newMetrics.set(peerId, metrics);
 
-      // Update history
+      // Update history with immutable operations
       const newHistory = new Map(state.metricsHistory);
-      const history = newHistory.get(peerId) ?? createEmptyHistory();
+      const prev = newHistory.get(peerId) ?? createEmptyHistory();
+      const max = state.historyMaxSamples;
 
-      // Add new sample
-      history.timestamps.push(metrics.timestamp);
-      history.bitrates.push(metrics.video.bitrate);
-      history.fps.push(metrics.video.fps);
-      history.rtt.push(metrics.connection.rtt);
-      history.packetLoss.push(metrics.video.packetLoss);
+      // Use slice (O(n) but single operation) instead of push+splice (multiple O(n) operations)
+      // slice(-max + 1) keeps last (max-1) items, then we append the new one
+      const needsTrim = prev.timestamps.length >= max;
+      const sliceStart = needsTrim ? -(max - 1) : 0;
 
-      // Trim to max samples
-      if (history.timestamps.length > state.historyMaxSamples) {
-        const excess = history.timestamps.length - state.historyMaxSamples;
-        history.timestamps.splice(0, excess);
-        history.bitrates.splice(0, excess);
-        history.fps.splice(0, excess);
-        history.rtt.splice(0, excess);
-        history.packetLoss.splice(0, excess);
-      }
+      const updatedHistory: MetricsHistory = {
+        timestamps: [...prev.timestamps.slice(sliceStart), metrics.timestamp],
+        bitrates: [...prev.bitrates.slice(sliceStart), metrics.video.bitrate],
+        fps: [...prev.fps.slice(sliceStart), metrics.video.fps],
+        rtt: [...prev.rtt.slice(sliceStart), metrics.connection.rtt],
+        packetLoss: [
+          ...prev.packetLoss.slice(sliceStart),
+          metrics.video.packetLoss,
+        ],
+      };
 
-      newHistory.set(peerId, history);
+      newHistory.set(peerId, updatedHistory);
 
       return { peerMetrics: newMetrics, metricsHistory: newHistory };
     }),

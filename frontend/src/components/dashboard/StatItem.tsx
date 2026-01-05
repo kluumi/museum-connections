@@ -1,4 +1,5 @@
 import { HelpCircle } from "lucide-react";
+import { memo } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -38,7 +39,7 @@ interface StatItemProps {
   tooltip?: TooltipInfo;
 }
 
-export function StatItem({
+export const StatItem = memo(function StatItem({
   icon: Icon,
   label,
   value,
@@ -117,4 +118,4 @@ export function StatItem({
       </TooltipContent>
     </Tooltip>
   );
-}
+});

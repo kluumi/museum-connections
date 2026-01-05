@@ -6,8 +6,9 @@ import type { SenderNodeId } from "@/constants/node-ids";
 import { handleError } from "@/lib/errors";
 import type { StreamSlice } from "@/stores";
 import { useSettingsStore } from "@/stores";
-import { useMediaDevices } from "./useMediaDevices";
-import { useUserMedia } from "./useUserMedia";
+import type { CameraCapabilities } from "@/stores/devicesSlice";
+import { type UseMediaDevicesReturn, useMediaDevices } from "./useMediaDevices";
+import { type UseUserMediaReturn, useUserMedia } from "./useUserMedia";
 
 export interface UseSenderMediaOptions {
   nodeId: SenderNodeId;
@@ -25,7 +26,7 @@ export interface UseSenderMediaResult {
   // Device lists
   cameras: MediaDeviceInfo[];
   microphones: MediaDeviceInfo[];
-  cameraCapabilities: ReturnType<typeof useMediaDevices>["cameraCapabilities"];
+  cameraCapabilities: CameraCapabilities | null;
 
   // Selected devices
   selectedCameraId: string | null;
@@ -45,11 +46,9 @@ export interface UseSenderMediaResult {
     microphoneId?: string;
   }) => Promise<MediaStream | null>;
   stopMedia: () => void;
-  applyVideoConstraints: ReturnType<
-    typeof useUserMedia
-  >["applyVideoConstraints"];
-  replaceVideoTrack: ReturnType<typeof useUserMedia>["replaceVideoTrack"];
-  replaceAudioTrack: ReturnType<typeof useUserMedia>["replaceAudioTrack"];
+  applyVideoConstraints: UseUserMediaReturn["applyVideoConstraints"];
+  replaceVideoTrack: UseUserMediaReturn["replaceVideoTrack"];
+  replaceAudioTrack: UseUserMediaReturn["replaceAudioTrack"];
 
   // Loading states
   isInitializing: boolean;
@@ -58,7 +57,7 @@ export interface UseSenderMediaResult {
   setIsVideoReady: (ready: boolean) => void;
 
   // Device enumeration
-  enumerateDevices: ReturnType<typeof useMediaDevices>["enumerateDevices"];
+  enumerateDevices: UseMediaDevicesReturn["enumerateDevices"];
 }
 
 /**
@@ -201,7 +200,7 @@ export function useSenderMedia({
           const currentStream = localStreamRef.current;
           const persistedSettings = useSettingsStore
             .getState()
-            .getVideoSettings(nodeId, selectedCameraId);
+            .getPersistedVideoSettings(nodeId, selectedCameraId);
 
           if (
             currentStream &&
@@ -333,7 +332,7 @@ export function useSenderMedia({
 
     const persistedSettings = useSettingsStore
       .getState()
-      .getVideoSettings(nodeId, selectedCameraId);
+      .getPersistedVideoSettings(nodeId, selectedCameraId);
     console.log("📹 Initial settings check:", {
       hasStream: !!localStream,
       cameraId: selectedCameraId,

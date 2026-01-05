@@ -18,6 +18,87 @@ export type ErrorCategory =
 export type LogLevel = "info" | "warning" | "error";
 
 /**
+ * Result type for operations that can fail
+ * Use this instead of try/catch when you want explicit error handling
+ */
+export type Result<T, E = Error> =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+/**
+ * Create a successful result
+ */
+export function ok<T>(value: T): Result<T, never> {
+  return { ok: true, value };
+}
+
+/**
+ * Create an error result
+ */
+export function err<E>(error: E): Result<never, E> {
+  return { ok: false, error };
+}
+
+/**
+ * Base error class with category support
+ */
+export class AppError extends Error {
+  readonly category: ErrorCategory;
+  readonly originalError?: unknown;
+
+  constructor(
+    message: string,
+    category: ErrorCategory = "unknown",
+    originalError?: unknown,
+  ) {
+    super(message);
+    this.name = "AppError";
+    this.category = category;
+    this.originalError = originalError;
+  }
+}
+
+/**
+ * Media-specific error (camera, microphone)
+ */
+export class MediaError extends AppError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, "media", originalError);
+    this.name = "MediaError";
+  }
+}
+
+/**
+ * WebRTC connection error
+ */
+export class WebRTCError extends AppError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, "webrtc", originalError);
+    this.name = "WebRTCError";
+  }
+}
+
+/**
+ * Signaling (WebSocket) error
+ */
+export class SignalingError extends AppError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, "signaling", originalError);
+    this.name = "SignalingError";
+  }
+}
+
+/**
+ * Network connectivity error
+ */
+export class NetworkError extends AppError {
+  constructor(message: string, originalError?: unknown) {
+    super(message, "network", originalError);
+    this.name = "NetworkError";
+  }
+}
+
+/**
  * Extract a user-friendly error message from an unknown error
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: error handling requires many branches
@@ -59,6 +140,11 @@ export function getErrorMessage(error: unknown): string {
  * Categorize an error for appropriate handling
  */
 export function categorizeError(error: unknown): ErrorCategory {
+  // Handle our custom error classes first
+  if (error instanceof AppError) {
+    return error.category;
+  }
+
   if (error instanceof Error) {
     const name = error.name.toLowerCase();
     const msg = error.message.toLowerCase();
@@ -232,4 +318,100 @@ export async function withErrorHandling<T>(
     }
     return undefined;
   }
+}
+
+/**
+ * Wrap an async function with Result type error handling
+ * Returns Result<T, Error> instead of throwing
+ *
+ * @example
+ * const result = await tryAsync(
+ *   () => navigator.mediaDevices.getUserMedia({ video: true }),
+ *   "Accès caméra"
+ * );
+ * if (result.ok) {
+ *   // use result.value
+ * } else {
+ *   // handle result.error
+ * }
+ */
+export async function tryAsync<T>(
+  fn: () => Promise<T>,
+  context: string,
+  options?: {
+    category?: ErrorCategory;
+    silent?: boolean;
+  },
+): Promise<Result<T, Error>> {
+  try {
+    return ok(await fn());
+  } catch (error) {
+    const category = options?.category ?? categorizeError(error);
+    const emoji = getLogEmoji(category);
+
+    if (!options?.silent) {
+      console.error(`${emoji} ${context}:`, error);
+    }
+
+    return err(
+      error instanceof Error ? error : new Error(getErrorMessage(error)),
+    );
+  }
+}
+
+/**
+ * Log an error in service context (no UI callback needed)
+ * Use this in services that don't have access to addLog callbacks
+ *
+ * @example
+ * // In a service class
+ * logServiceError(error, "WebRTCService", "createOffer", "webrtc");
+ */
+export function logServiceError(
+  error: unknown,
+  serviceName: string,
+  operation: string,
+  category?: ErrorCategory,
+): void {
+  const errorCategory = category ?? categorizeError(error);
+  const emoji = getLogEmoji(errorCategory);
+  const message = getErrorMessage(error);
+
+  console.error(`${emoji} [${serviceName}] ${operation}: ${message}`, error);
+}
+
+/**
+ * Assert a condition and throw if false
+ * Useful for runtime invariant checks
+ *
+ * @example
+ * assertDefined(this.pc, "Peer connection must be initialized");
+ */
+export function assertDefined<T>(
+  value: T | null | undefined,
+  message: string,
+): asserts value is T {
+  if (value === null || value === undefined) {
+    throw new AppError(message, "unknown");
+  }
+}
+
+/**
+ * Type guard to check if an error has a specific category
+ */
+export function isAppError(error: unknown): error is AppError {
+  return error instanceof AppError;
+}
+
+/**
+ * Type guard to check if error is of a specific category
+ */
+export function isErrorCategory(
+  error: unknown,
+  category: ErrorCategory,
+): boolean {
+  if (error instanceof AppError) {
+    return error.category === category;
+  }
+  return categorizeError(error) === category;
 }

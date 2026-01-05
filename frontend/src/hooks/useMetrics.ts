@@ -10,7 +10,9 @@ import type { MetricsHistory, PeerMetrics } from "@/types";
  * Hook for accessing metrics for a specific peer
  */
 export function useMetrics(peerId: NodeId) {
-  const { peerMetrics, metricsHistory } = useStore();
+  // Use individual selectors for stable references
+  const peerMetrics = useStore((s) => s.peerMetrics);
+  const metricsHistory = useStore((s) => s.metricsHistory);
 
   const metrics = peerMetrics.get(peerId);
   const history = metricsHistory.get(peerId);
@@ -36,7 +38,9 @@ export function useMetrics(peerId: NodeId) {
  * Hook for accessing metrics for all peers
  */
 export function useAllMetrics() {
-  const { peerMetrics, metricsHistory } = useStore();
+  // Use individual selectors for stable references
+  const peerMetrics = useStore((s) => s.peerMetrics);
+  const metricsHistory = useStore((s) => s.metricsHistory);
 
   const allMetrics = useMemo(() => {
     const result = new Map<
@@ -62,7 +66,8 @@ export function useAllMetrics() {
  * Hook for aggregated metrics (useful for operator dashboard)
  */
 export function useAggregatedMetrics() {
-  const { peerMetrics } = useStore();
+  // Use individual selector for stable reference
+  const peerMetrics = useStore((s) => s.peerMetrics);
 
   const aggregated = useMemo(() => {
     let totalBitrate = 0;

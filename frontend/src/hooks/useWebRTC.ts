@@ -7,10 +7,38 @@ import { type SignalingService, WebRTCService } from "@/services";
 import { useStore } from "@/stores";
 import type { PeerMetrics, ServerToClientMessage } from "@/types";
 
-interface UseWebRTCOptions {
+export interface UseWebRTCOptions {
   localStream?: MediaStream | null;
   onTrack?: (event: RTCTrackEvent) => void;
   onMetrics?: (metrics: PeerMetrics) => void;
+}
+
+/** Return type for useWebRTC hook */
+export interface UseWebRTCReturn {
+  // State
+  connectionState: ConnectionState;
+  isConnected: boolean;
+  remoteStream: MediaStream | null;
+
+  // Service access
+  service: WebRTCService | null;
+
+  // Message handler (to be called from useSignaling)
+  handleSignalingMessage: (message: ServerToClientMessage) => Promise<void>;
+
+  // Actions
+  createOffer: () => Promise<RTCSessionDescriptionInit | null>;
+  handleOffer: (
+    offer: RTCSessionDescriptionInit,
+  ) => Promise<RTCSessionDescriptionInit>;
+  handleAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
+  addIceCandidate: (candidate: RTCIceCandidateInit) => Promise<void>;
+  replaceTrack: (track: MediaStreamTrack) => Promise<void>;
+  setVideoBitrate: (maxBitrate: number | "auto") => Promise<boolean>;
+  setPreferredCodec: (codec: string | "auto") => void;
+  restartIce: () => Promise<void>;
+  close: () => void;
+  setEffectiveRemoteNodeId: (nodeId: NodeId) => void;
 }
 
 /**
@@ -21,17 +49,16 @@ export function useWebRTC(
   remoteNodeId: NodeId,
   signaling: SignalingService | null,
   options: UseWebRTCOptions = {},
-) {
+): UseWebRTCReturn {
   const { localStream, onTrack, onMetrics } = options;
 
-  const {
-    setPeerConnectionState,
-    removePeerConnectionState,
-    addRemoteStream,
-    removeRemoteStream,
-    updatePeerMetrics,
-    removePeerMetrics,
-  } = useStore();
+  // Use individual selectors for stable references
+  const setPeerConnectionState = useStore((s) => s.setPeerConnectionState);
+  const removePeerConnectionState = useStore((s) => s.removePeerConnectionState);
+  const addRemoteStream = useStore((s) => s.addRemoteStream);
+  const removeRemoteStream = useStore((s) => s.removeRemoteStream);
+  const updatePeerMetrics = useStore((s) => s.updatePeerMetrics);
+  const removePeerMetrics = useStore((s) => s.removePeerMetrics);
 
   const serviceRef = useRef<WebRTCService | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>(

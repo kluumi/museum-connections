@@ -1,10 +1,34 @@
-// Type-safe event bus for cross-component communication
+/**
+ * Type-safe event bus for cross-component communication.
+ *
+ * The event bus enables decoupled communication between services, hooks,
+ * and components without direct dependencies. Events are typed via EventMap.
+ *
+ * @module events
+ * @example
+ * ```typescript
+ * import { eventBus } from '@/lib/events';
+ *
+ * // Subscribe to an event
+ * const unsubscribe = eventBus.on('signaling:connected', ({ nodeId }) => {
+ *   console.log(`Node ${nodeId} connected`);
+ * });
+ *
+ * // Emit an event
+ * eventBus.emit('signaling:connected', { nodeId: 'nantes' });
+ *
+ * // Cleanup
+ * unsubscribe();
+ * ```
+ */
 
 import type { NodeId, StopReason } from "@/constants";
 import type { PeerMetrics } from "@/types";
 
-// Event map defining all possible events and their payloads
-// Using type with index signature to satisfy Record constraint
+/**
+ * Event map defining all possible events and their payloads.
+ * Add new events here to enable type-safe emit/subscribe.
+ */
 export type EventMap = {
   [key: string]: object;
   // Signaling events
@@ -42,7 +66,29 @@ type EventHandler<T> = (data: T) => void;
 type Unsubscribe = () => void;
 
 /**
- * Type-safe event emitter for application-wide events
+ * Type-safe event emitter for application-wide events.
+ *
+ * Provides a publish/subscribe mechanism with full TypeScript support.
+ * Event types and payloads are enforced at compile time.
+ *
+ * @typeParam T - Event map defining event names and their payload types
+ *
+ * @example
+ * ```typescript
+ * // Create a custom event bus with specific events
+ * type MyEvents = {
+ *   'user:login': { userId: string };
+ *   'user:logout': { reason: string };
+ * };
+ *
+ * const myBus = new TypedEventEmitter<MyEvents>();
+ *
+ * myBus.on('user:login', ({ userId }) => {
+ *   console.log(`User ${userId} logged in`);
+ * });
+ *
+ * myBus.emit('user:login', { userId: '123' });
+ * ```
  */
 class TypedEventEmitter<T extends Record<string, unknown>> {
   private listeners = new Map<keyof T, Set<EventHandler<unknown>>>();

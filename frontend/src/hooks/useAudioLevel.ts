@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-interface UseAudioLevelOptions {
+export interface UseAudioLevelOptions {
   /** Update interval in ms (default: 50ms for smooth animation) */
   interval?: number;
   /** FFT size for frequency analysis (default: 256) */
@@ -68,6 +68,10 @@ export function useAudioLevel(
     peakRef.current = 0;
   }, []);
 
+  // Get the current audio track ID to detect track changes
+  // This handles hot-swap where stream reference stays same but track changes
+  const audioTrackId = stream?.getAudioTracks()[0]?.id ?? null;
+
   useEffect(() => {
     if (!stream) {
       cleanup();
@@ -81,6 +85,11 @@ export function useAudioLevel(
       console.log("🔇 No audio tracks in stream");
       return;
     }
+
+    console.log(
+      "🎤 Setting up audio level meter for track:",
+      audioTracks[0].label,
+    );
 
     // Create audio context and analyser
     const audioContext = new AudioContext();
@@ -167,7 +176,9 @@ export function useAudioLevel(
       cleanupListeners();
       cleanup();
     };
-  }, [stream, interval, fftSize, smoothingTimeConstant, cleanup]);
+    // audioTrackId is used to detect when the audio track changes (hot-swap)
+    // even if the stream reference stays the same
+  }, [stream, audioTrackId, interval, fftSize, smoothingTimeConstant, cleanup]);
 
   return state;
 }

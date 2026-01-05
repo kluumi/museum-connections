@@ -81,23 +81,16 @@ export const MESSAGES = {
   },
 } as const;
 
-// Quality thresholds matching legacy metrics.js
-export const QUALITY_THRESHOLDS = {
-  EXCELLENT: 80,
-  GOOD: 60,
-  FAIR: 40,
-} as const;
+// Re-export quality utilities from metrics.ts for backwards compatibility
+export {
+  getQualityLevel as getQualityLabel,
+  QUALITY_COLORS,
+  QUALITY_THRESHOLDS,
+} from "./metrics";
 
-export function getQualityLabel(score: number): keyof typeof MESSAGES.quality {
-  if (score >= QUALITY_THRESHOLDS.EXCELLENT) return "excellent";
-  if (score >= QUALITY_THRESHOLDS.GOOD) return "good";
-  if (score >= QUALITY_THRESHOLDS.FAIR) return "fair";
-  return "poor";
-}
+import { getQualityLevel, QUALITY_COLORS } from "./metrics";
 
+/** @deprecated Use getQualityLevel from metrics.ts instead */
 export function getQualityColor(score: number): string {
-  if (score >= QUALITY_THRESHOLDS.EXCELLENT) return "green";
-  if (score >= QUALITY_THRESHOLDS.GOOD) return "lime";
-  if (score >= QUALITY_THRESHOLDS.FAIR) return "orange";
-  return "red";
+  return QUALITY_COLORS[getQualityLevel(score)];
 }

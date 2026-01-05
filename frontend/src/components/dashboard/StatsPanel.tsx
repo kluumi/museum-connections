@@ -1,4 +1,5 @@
 import { Activity, HelpCircle, Signal } from "lucide-react";
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -6,6 +7,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  getQualityLevel,
+  QUALITY_LABELS,
+  QUALITY_PROGRESS_COLORS,
+  QUALITY_TEXT_COLORS,
+} from "@/constants/metrics";
 import { cn } from "@/lib/utils";
 import type { PeerMetrics } from "@/types/metrics";
 import { BandwidthUsageIndicator } from "./BandwidthUsageIndicator";
@@ -20,28 +27,11 @@ interface StatsPanelProps {
 }
 
 function getQualityStyle(score: number) {
-  if (score >= 80)
-    return {
-      label: "Excellent",
-      color: "text-emerald-500",
-      progress: "[&>div]:bg-emerald-500",
-    };
-  if (score >= 60)
-    return {
-      label: "Bon",
-      color: "text-lime-500",
-      progress: "[&>div]:bg-lime-500",
-    };
-  if (score >= 40)
-    return {
-      label: "Moyen",
-      color: "text-amber-500",
-      progress: "[&>div]:bg-amber-500",
-    };
+  const level = getQualityLevel(score);
   return {
-    label: "Faible",
-    color: "text-red-500",
-    progress: "[&>div]:bg-red-500",
+    label: QUALITY_LABELS[level],
+    color: QUALITY_TEXT_COLORS[level],
+    progress: QUALITY_PROGRESS_COLORS[level],
   };
 }
 
@@ -103,7 +93,7 @@ function QualityHeader({
   );
 }
 
-export function StatsPanel({
+export const StatsPanel = memo(function StatsPanel({
   metrics,
   className,
   isStreaming = true,
@@ -112,13 +102,25 @@ export function StatsPanel({
   const video = metrics?.video;
   const connection = metrics?.connection;
   const qualityScore = metrics?.qualityScore ?? 0;
-  const quality = getQualityStyle(qualityScore);
 
-  const availableBandwidth =
-    connection?.availableOutgoingBitrate ||
-    connection?.availableIncomingBitrate ||
-    0;
-  const currentBitrate = video?.bitrate ?? 0;
+  // Memoize quality style calculation
+  const quality = useMemo(() => getQualityStyle(qualityScore), [qualityScore]);
+
+  // Memoize bandwidth calculations
+  const { availableBandwidth, currentBitrate } = useMemo(
+    () => ({
+      availableBandwidth:
+        connection?.availableOutgoingBitrate ||
+        connection?.availableIncomingBitrate ||
+        0,
+      currentBitrate: video?.bitrate ?? 0,
+    }),
+    [
+      connection?.availableOutgoingBitrate,
+      connection?.availableIncomingBitrate,
+      video?.bitrate,
+    ],
+  );
 
   return (
     <Card className={cn(className, !isStreaming && "opacity-60")}>
@@ -163,4 +165,4 @@ export function StatsPanel({
       </CardContent>
     </Card>
   );
-}
+});

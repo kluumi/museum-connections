@@ -1,7 +1,13 @@
 // useStreamState - State machine for stream lifecycle
 // Pattern: Single source of truth for all stream-related states
+//
+// This hook is THE authority for streaming state. It:
+// 1. Manages the state machine (idle/starting/streaming/stopping/error)
+// 2. Persists to localStorage for auto-restart on page refresh
+// 3. Notifies StreamManager to keep its internal state in sync
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { logger } from "@/lib/logger";
 
 /**
  * Stream state machine states
@@ -28,6 +34,14 @@ export interface StreamState {
   startedAt: number | null; // Timestamp when streaming started (for timer)
   error: string | null; // Error message if status is "error"
   initiatedBy: "local" | "remote" | null; // Who initiated current action
+}
+
+// Callbacks for keeping external systems in sync
+export interface StreamStateCallbacks {
+  // Called when streaming state changes - used to sync StreamManager
+  onStreamingStateChange?: (isStreaming: boolean) => void;
+  // Called to persist state to localStorage - used for auto-restart
+  persistState?: (isStreaming: boolean) => void;
 }
 
 export interface StreamStateActions {
@@ -78,12 +92,20 @@ const initialState: StreamState = {
 /**
  * Hook for managing stream lifecycle state machine
  *
- * This provides a single source of truth for stream state,
+ * This provides THE SINGLE SOURCE OF TRUTH for stream state,
  * replacing scattered isStreaming, streamLoading, and error states.
+ *
+ * All state changes flow through this hook:
+ * - UI reads from this hook
+ * - StreamManager is notified via callbacks
+ * - localStorage is updated via callbacks (for auto-restart)
  *
  * @example
  * ```tsx
- * const stream = useStreamState();
+ * const stream = useStreamState({
+ *   onStreamingStateChange: (isStreaming) => streamManager.setStreamingState(isStreaming),
+ *   persistState: (isStreaming) => settingsStore.setStreamingState(nodeId, isStreaming),
+ * });
  *
  * // In start handler
  * stream.startStreaming();
@@ -98,23 +120,46 @@ const initialState: StreamState = {
  * </button>
  * ```
  */
-export function useStreamState(): UseStreamStateReturn {
+export function useStreamState(
+  callbacks?: StreamStateCallbacks,
+): UseStreamStateReturn {
   const [state, setState] = useState<StreamState>(initialState);
   const stateRef = useRef<StreamState>(state);
+  const callbacksRef = useRef(callbacks);
 
-  // Keep ref in sync
+  // Keep refs in sync
   stateRef.current = state;
+  callbacksRef.current = callbacks;
+
+  // Notify external systems when streaming state changes
+  const prevIsStreaming = useRef(false);
+  useEffect(() => {
+    const isStreaming = state.status === "streaming";
+    if (isStreaming !== prevIsStreaming.current) {
+      prevIsStreaming.current = isStreaming;
+      logger.debug(
+        "stream",
+        `Syncing streaming state: ${isStreaming} (status: ${state.status})`,
+      );
+      callbacksRef.current?.onStreamingStateChange?.(isStreaming);
+      callbacksRef.current?.persistState?.(isStreaming);
+    }
+  }, [state.status]);
 
   const startStreaming = useCallback(
     (initiatedBy: "local" | "remote" = "local") => {
       setState((prev) => {
         // Can only start from idle or error
         if (prev.status !== "idle" && prev.status !== "error") {
-          console.warn(`⚠️ Cannot start streaming from state: ${prev.status}`);
+          logger.warn(
+            "stream",
+            `Cannot start streaming from state: ${prev.status}`,
+          );
           return prev;
         }
-        console.log(
-          `▶️ Stream state: ${prev.status} → starting (by ${initiatedBy})`,
+        logger.info(
+          "stream",
+          `Stream state: ${prev.status} → starting (by ${initiatedBy})`,
         );
         return {
           status: "starting",
@@ -131,15 +176,16 @@ export function useStreamState(): UseStreamStateReturn {
     setState((prev) => {
       // Should only transition from starting
       if (prev.status !== "starting") {
-        console.warn(
-          `⚠️ streamingStarted called in unexpected state: ${prev.status}`,
+        logger.warn(
+          "stream",
+          `streamingStarted called in unexpected state: ${prev.status}`,
         );
         // Allow it anyway if we're not already streaming (handles race conditions)
         if (prev.status === "streaming") {
           return prev;
         }
       }
-      console.log(`✅ Stream state: ${prev.status} → streaming`);
+      logger.info("stream", `Stream state: ${prev.status} → streaming`);
       return {
         ...prev,
         status: "streaming",
@@ -154,11 +200,15 @@ export function useStreamState(): UseStreamStateReturn {
       setState((prev) => {
         // Can only stop from streaming
         if (prev.status !== "streaming") {
-          console.warn(`⚠️ Cannot stop streaming from state: ${prev.status}`);
+          logger.warn(
+            "stream",
+            `Cannot stop streaming from state: ${prev.status}`,
+          );
           return prev;
         }
-        console.log(
-          `⏹️ Stream state: ${prev.status} → stopping (by ${initiatedBy})`,
+        logger.info(
+          "stream",
+          `Stream state: ${prev.status} → stopping (by ${initiatedBy})`,
         );
         return {
           ...prev,
@@ -178,14 +228,15 @@ export function useStreamState(): UseStreamStateReturn {
         prev.status !== "streaming" &&
         prev.status !== "starting"
       ) {
-        console.warn(
-          `⚠️ streamingStopped called in unexpected state: ${prev.status}`,
+        logger.warn(
+          "stream",
+          `streamingStopped called in unexpected state: ${prev.status}`,
         );
         if (prev.status === "idle") {
           return prev;
         }
       }
-      console.log(`⏹️ Stream state: ${prev.status} → idle`);
+      logger.info("stream", `Stream state: ${prev.status} → idle`);
       return {
         status: "idle",
         startedAt: null,
@@ -197,7 +248,7 @@ export function useStreamState(): UseStreamStateReturn {
 
   const setError = useCallback((error: string) => {
     setState((prev) => {
-      console.log(`❌ Stream state: ${prev.status} → error: ${error}`);
+      logger.error("stream", `Stream state: ${prev.status} → error: ${error}`);
       return {
         ...prev,
         status: "error",
@@ -211,7 +262,7 @@ export function useStreamState(): UseStreamStateReturn {
       if (prev.status !== "error") {
         return prev;
       }
-      console.log("🔄 Stream state: error → idle");
+      logger.info("stream", "Stream state: error → idle");
       return {
         status: "idle",
         startedAt: null,
@@ -222,7 +273,10 @@ export function useStreamState(): UseStreamStateReturn {
   }, []);
 
   const reset = useCallback(() => {
-    console.log(`🔄 Stream state: ${stateRef.current.status} → idle (reset)`);
+    logger.info(
+      "stream",
+      `Stream state: ${stateRef.current.status} → idle (reset)`,
+    );
     setState(initialState);
   }, []);
 

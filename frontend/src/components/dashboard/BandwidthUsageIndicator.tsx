@@ -52,7 +52,8 @@ export function BandwidthUsageIndicator({
   // Also treat unrealistic values as unavailable:
   // - WebRTC's availableBandwidth estimation can be unreliable initially
   // - If reported bandwidth is lower than actual bitrate, the estimate is clearly wrong
-  const isReliable = availableBandwidth > 0 && availableBandwidth >= currentBitrate * 0.5;
+  const isReliable =
+    availableBandwidth > 0 && availableBandwidth >= currentBitrate * 0.5;
   const hasBandwidthData = isReliable;
   const usagePercent = hasBandwidthData
     ? Math.min(100, (currentBitrate / availableBandwidth) * 100)

@@ -1,8 +1,14 @@
+import { memo } from "react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  getQualityLevel,
+  QUALITY_LABELS,
+  type QualityLevel,
+} from "@/constants/metrics";
 import { cn } from "@/lib/utils";
 
 interface NetworkQualityIndicatorProps {
@@ -16,65 +22,24 @@ interface NetworkQualityIndicatorProps {
   className?: string;
 }
 
-type QualityLevel = "excellent" | "good" | "fair" | "poor" | "none";
+/** Signal bars configuration per quality level */
+const SIGNAL_BARS_CONFIG: Record<
+  QualityLevel,
+  { bars: number; color: string }
+> = {
+  excellent: { bars: 4, color: "bg-emerald-500" },
+  good: { bars: 3, color: "bg-lime-500" },
+  fair: { bars: 2, color: "bg-amber-500" },
+  poor: { bars: 1, color: "bg-red-500" },
+  none: { bars: 0, color: "bg-muted-foreground" },
+};
 
-interface QualityConfig {
-  level: QualityLevel;
-  label: string;
-  labelFr: string;
-  bars: number; // 0-4
-  color: string;
-  bgColor: string;
-}
-
-function getQualityConfig(score: number): QualityConfig {
-  if (score >= 80) {
-    return {
-      level: "excellent",
-      label: "Excellent",
-      labelFr: "Excellent",
-      bars: 4,
-      color: "bg-emerald-500",
-      bgColor: "bg-emerald-500/20",
-    };
-  }
-  if (score >= 60) {
-    return {
-      level: "good",
-      label: "Good",
-      labelFr: "Bon",
-      bars: 3,
-      color: "bg-lime-500",
-      bgColor: "bg-lime-500/20",
-    };
-  }
-  if (score >= 40) {
-    return {
-      level: "fair",
-      label: "Fair",
-      labelFr: "Moyen",
-      bars: 2,
-      color: "bg-amber-500",
-      bgColor: "bg-amber-500/20",
-    };
-  }
-  if (score > 0) {
-    return {
-      level: "poor",
-      label: "Poor",
-      labelFr: "Faible",
-      bars: 1,
-      color: "bg-red-500",
-      bgColor: "bg-red-500/20",
-    };
-  }
+function getSignalConfig(score: number) {
+  const level = getQualityLevel(score);
   return {
-    level: "none",
-    label: "No signal",
-    labelFr: "Pas de signal",
-    bars: 0,
-    color: "bg-muted-foreground",
-    bgColor: "bg-muted",
+    level,
+    label: QUALITY_LABELS[level],
+    ...SIGNAL_BARS_CONFIG[level],
   };
 }
 
@@ -100,20 +65,20 @@ const sizeConfig = {
  * Signal bars indicator showing network quality
  * Based on quality score (0-100)
  */
-export function NetworkQualityIndicator({
+export const NetworkQualityIndicator = memo(function NetworkQualityIndicator({
   qualityScore,
   showTooltip = true,
   size = "md",
   className,
 }: NetworkQualityIndicatorProps) {
-  const config = getQualityConfig(qualityScore);
+  const config = getSignalConfig(qualityScore);
   const sizes = sizeConfig[size];
 
   const indicator = (
     <div
       role="img"
       className={cn("flex items-end", sizes.container, className)}
-      aria-label={`Qualité réseau: ${config.labelFr} (${qualityScore}/100)`}
+      aria-label={`Qualité réseau: ${config.label} (${qualityScore}/100)`}
     >
       {[0, 1, 2, 3].map((barIndex) => {
         const isActive = barIndex < config.bars;
@@ -144,7 +109,7 @@ export function NetworkQualityIndicator({
       <TooltipContent side="bottom" className="max-w-xs">
         <div className="space-y-1 text-sm">
           <p className="font-medium">
-            Qualité réseau : {config.labelFr} ({qualityScore}/100)
+            Qualité réseau : {config.label} ({qualityScore}/100)
           </p>
           <div className="space-y-0.5 text-xs">
             <p>
@@ -168,4 +133,4 @@ export function NetworkQualityIndicator({
       </TooltipContent>
     </Tooltip>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 export type StatusType = "online" | "pending" | "offline";
@@ -27,7 +28,7 @@ const statusLabels: Record<StatusType, string> = {
   offline: "Hors ligne",
 };
 
-export function StatusIndicator({
+export const StatusIndicator = memo(function StatusIndicator({
   status,
   size = "md",
   className,
@@ -44,4 +45,4 @@ export function StatusIndicator({
       aria-label={statusLabels[status]}
     />
   );
-}
+});

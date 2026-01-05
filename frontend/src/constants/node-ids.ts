@@ -21,15 +21,44 @@ export type NodeId = BaseNodeId | `operator-${string}`;
 
 /**
  * Generate a unique operator node ID for this browser tab.
- * Uses crypto.randomUUID for uniqueness.
  *
- * Note: Each page load gets a fresh ID to avoid conflicts when opening
- * multiple tabs (sessionStorage can be inherited when opening links
- * in new tabs via middle-click or Ctrl+click).
+ * Uses sessionStorage to preserve the ID across page refreshes (avoiding 30s
+ * reconnection delays), while still generating a new ID for truly new tabs.
+ *
+ * Detection logic:
+ * - If sessionStorage has an ID that was set in this exact page lifecycle
+ *   (within 100ms), it's a duplicate tab via middle-click → generate new ID
+ * - Otherwise, reuse the existing ID (page refresh) or create new one (first visit)
  */
 export function generateOperatorNodeId(): NodeId {
+  const STORAGE_KEY = "operator_node_id";
+  const TIMESTAMP_KEY = "operator_node_id_ts";
+
+  const existingId = sessionStorage.getItem(STORAGE_KEY);
+  const existingTimestamp = sessionStorage.getItem(TIMESTAMP_KEY);
+  const now = Date.now();
+
+  // Check if this might be a duplicated tab (sessionStorage inherited)
+  // If the timestamp was set very recently (< 100ms), it's likely a new tab
+  // that inherited sessionStorage from Ctrl+click / middle-click
+  const isDuplicateTab =
+    existingTimestamp && now - Number.parseInt(existingTimestamp, 10) < 100;
+
+  if (existingId && !isDuplicateTab) {
+    // Reuse existing ID (page refresh scenario)
+    // Update timestamp to mark this page as "active"
+    sessionStorage.setItem(TIMESTAMP_KEY, String(now));
+    return existingId as NodeId;
+  }
+
+  // Generate new ID (first visit or duplicate tab)
   const suffix = crypto.randomUUID().slice(0, 8);
-  return `operator-${suffix}` as NodeId;
+  const newId = `operator-${suffix}` as NodeId;
+
+  sessionStorage.setItem(STORAGE_KEY, newId);
+  sessionStorage.setItem(TIMESTAMP_KEY, String(now));
+
+  return newId;
 }
 
 /**
