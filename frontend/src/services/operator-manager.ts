@@ -370,7 +370,7 @@ export class OperatorManager {
 
     const webrtc = new WebRTCService(this.nodeId, sourceId, this.signaling, {
       onTrack: (event) => {
-        if (event.streams && event.streams[0]) {
+        if (event.streams?.[0]) {
           state.remoteStream = event.streams[0];
           this.onSourceStateChange?.(sourceId, {
             connectionState: state.connectionState,

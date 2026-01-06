@@ -73,8 +73,8 @@ export class ConnectionErrorBoundary extends Component<Props, State> {
         </div>
 
         <div className="space-y-2 text-left text-sm text-muted-foreground">
-          {getConnectionErrorHints(errorType).map((hint, i) => (
-            <p key={i}>• {hint}</p>
+          {getConnectionErrorHints(errorType).map((hint) => (
+            <p key={hint}>• {hint}</p>
           ))}
         </div>
 

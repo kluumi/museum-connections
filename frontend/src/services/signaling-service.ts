@@ -163,7 +163,10 @@ export class SignalingService {
       if (this.ws) {
         this.ws.removeEventListener("message", this.handleMessage);
         this.ws.removeEventListener("close", this.handleClose);
-        if (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN) {
+        if (
+          this.ws.readyState === WebSocket.CONNECTING ||
+          this.ws.readyState === WebSocket.OPEN
+        ) {
           this.ws.close();
         }
         this.ws = null;
@@ -361,7 +364,9 @@ export class SignalingService {
   private handleOpen = (): void => {
     // Guard against stale callback after cleanup (React StrictMode)
     if (!this.ws || this.intentionallyClosed) {
-      signalingLogger.debug("handleOpen called but ws is null or intentionally closed, ignoring");
+      signalingLogger.debug(
+        "handleOpen called but ws is null or intentionally closed, ignoring",
+      );
       return;
     }
 

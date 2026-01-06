@@ -234,7 +234,7 @@ export class OfferRequester {
    */
   resetOfferRequest(sourceId: string): void {
     const state = this.sources.get(sourceId);
-    if (state && state.hasRequestedOffer) {
+    if (state?.hasRequestedOffer) {
       state.hasRequestedOffer = false;
       this.onStateChange?.(sourceId, false);
     }

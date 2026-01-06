@@ -152,7 +152,6 @@ export function useSenderMedia({
         selectedCameraId,
       );
 
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Camera change handling with hot-swap and state management
       const doHandleCameraChange = async () => {
         try {
           setIsVideoReady(false);
@@ -261,7 +260,6 @@ export function useSenderMedia({
     });
 
     if (micChanged) {
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mic change handling with hot-swap during stream
       const doHandleMicChange = async () => {
         try {
           // Not streaming: restart preview with new mic

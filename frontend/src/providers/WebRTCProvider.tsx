@@ -93,7 +93,6 @@ export function WebRTCProvider({
   const connectionsRef = useRef<Map<NodeId, WebRTCService>>(new Map());
 
   // Initialize signaling service
-  // biome-ignore lint/correctness/useExhaustiveDependencies: handleSignalingMessage and cleanup functions are stable refs
   useEffect(() => {
     const signaling = new SignalingService(nodeId);
     signalingRef.current = signaling;
@@ -130,7 +129,6 @@ export function WebRTCProvider({
   }, [nodeId, autoConnect, setNodeId, setSignalingState]);
 
   // Handle signaling messages
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Store actions are stable
   const handleSignalingMessage = useCallback(
     async (message: ServerToClientMessage) => {
       switch (message.type) {
@@ -184,7 +182,6 @@ export function WebRTCProvider({
   );
 
   // Handle incoming offer
-  // biome-ignore lint/correctness/useExhaustiveDependencies: createPeerConnectionInternal is a stable ref
   const handleIncomingOffer = useCallback(
     async (peerId: NodeId, offer: RTCSessionDescriptionInit) => {
       let service = connectionsRef.current.get(peerId);
@@ -202,7 +199,6 @@ export function WebRTCProvider({
   );
 
   // Create peer connection (internal)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Store update functions are stable refs
   const createPeerConnectionInternal = useCallback(
     (peerId: NodeId): WebRTCService => {
       if (!signalingRef.current) {

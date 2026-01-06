@@ -154,13 +154,15 @@ export function useMediaDevices({
   // Can optionally accept an existing stream to avoid extra getUserMedia call
   // If keepStream is true and we create a new stream, return it for reuse
   const detectCameraCapabilities = useCallback(
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Camera capabilities detection with fallbacks
     async (
       deviceId: string,
       existingStream?: MediaStream,
       keepStream?: boolean,
       microphoneId?: string | null,
-    ): Promise<{ capabilities: CameraCapabilities | null; stream?: MediaStream }> => {
+    ): Promise<{
+      capabilities: CameraCapabilities | null;
+      stream?: MediaStream;
+    }> => {
       try {
         mediaLogger.debug("Detecting capabilities for camera:", deviceId);
 
@@ -181,11 +183,10 @@ export function useMediaDevices({
           // - Android device IDs are not stable between sessions
           // - Using "exact" would fail the entire getUserMedia if the mic is unavailable
           // - Using "ideal" allows graceful fallback to any available microphone
-          const audioConstraint = keepStream && microphoneId
-            ? { deviceId: { ideal: microphoneId } }
-            : keepStream
-              ? true
-              : false;
+          const audioConstraint =
+            keepStream && microphoneId
+              ? { deviceId: { ideal: microphoneId } }
+              : !!keepStream;
 
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -200,10 +201,15 @@ export function useMediaDevices({
           // Log audio track status (helpful for debugging Android issues)
           const audioTracks = stream.getAudioTracks();
           if (audioConstraint && audioTracks.length === 0) {
-            mediaLogger.warn("⚠️ Audio requested but no audio track received - this may cause issues on Android");
+            mediaLogger.warn(
+              "⚠️ Audio requested but no audio track received - this may cause issues on Android",
+            );
           } else if (audioTracks.length > 0) {
             const audioSettings = audioTracks[0].getSettings();
-            mediaLogger.debug("🎤 Audio track obtained:", audioSettings.deviceId);
+            mediaLogger.debug(
+              "🎤 Audio track obtained:",
+              audioSettings.deviceId,
+            );
           }
         }
 
@@ -237,7 +243,10 @@ export function useMediaDevices({
 
         if (!capabilities) {
           mediaLogger.warn("getCapabilities() not supported");
-          return { capabilities: null, stream: keepStream ? stream : undefined };
+          return {
+            capabilities: null,
+            stream: keepStream ? stream : undefined,
+          };
         }
 
         mediaLogger.debug("Raw camera capabilities:", capabilities);
@@ -310,7 +319,7 @@ export function useMediaDevices({
         mediaLogger.debug("Detected camera capabilities:", result);
         return {
           capabilities: result,
-          stream: (createdNewStream && keepStream) ? stream : undefined
+          stream: createdNewStream && keepStream ? stream : undefined,
         };
       } catch (error) {
         mediaLogger.error("Failed to detect camera capabilities:", error);
@@ -323,7 +332,6 @@ export function useMediaDevices({
   // Enumerate devices
   // Returns the selected device IDs and an initial stream that can be reused for preview
   // This avoids race conditions and extra getUserMedia calls
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Device enumeration with permission handling and default selection
   const enumerateDevices =
     useCallback(async (): Promise<EnumerateDevicesResult> => {
       setDevicesLoading(true);
@@ -506,12 +514,13 @@ export function useMediaDevices({
             // OPTIMIZATION: Keep the capability detection stream for preview
             // This avoids an extra getUserMedia call
             // Pass microphoneId so the stream includes audio for streaming
-            const { capabilities, stream: capStream } = await detectCameraCapabilities(
-              cameraToSelect,
-              undefined,
-              true, // keepStream - don't close it, we'll use it for preview
-              micToSelect, // Include audio track with selected microphone
-            );
+            const { capabilities, stream: capStream } =
+              await detectCameraCapabilities(
+                cameraToSelect,
+                undefined,
+                true, // keepStream - don't close it, we'll use it for preview
+                micToSelect, // Include audio track with selected microphone
+              );
             setCameraCapabilities(capabilities);
 
             if (capStream) {
@@ -578,7 +587,6 @@ export function useMediaDevices({
       setDevices,
       setDevicesLoading,
       setDevicesError,
-      setSelectedCamera,
       setSelectedMicrophone,
       setSelectedSpeaker,
       detectCameraCapabilities,

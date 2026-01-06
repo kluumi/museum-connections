@@ -54,7 +54,9 @@ export function useWebRTC(
 
   // Use individual selectors for stable references
   const setPeerConnectionState = useStore((s) => s.setPeerConnectionState);
-  const removePeerConnectionState = useStore((s) => s.removePeerConnectionState);
+  const removePeerConnectionState = useStore(
+    (s) => s.removePeerConnectionState,
+  );
   const addRemoteStream = useStore((s) => s.addRemoteStream);
   const removeRemoteStream = useStore((s) => s.removeRemoteStream);
   const updatePeerMetrics = useStore((s) => s.updatePeerMetrics);

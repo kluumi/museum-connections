@@ -22,7 +22,6 @@ interface AudioLevelMeterProps {
  * Real-time audio level meter (VU meter) component
  * Uses Web Audio API to display audio levels from a MediaStream
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: VU meter with multiple display modes and orientations
 export function AudioLevelMeter({
   stream,
   orientation = "horizontal",

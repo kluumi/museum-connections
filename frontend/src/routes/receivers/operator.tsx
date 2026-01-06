@@ -18,7 +18,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionState } from "@/constants/connection-states";
 import { generateOperatorNodeId, NodeId } from "@/constants/node-ids";
-import { useOperatorManager } from "@/hooks";
+import { useOperatorManager, usePageTitle } from "@/hooks";
 import { useStore } from "@/stores";
 
 export const Route = createFileRoute("/receivers/operator")({
@@ -26,6 +26,7 @@ export const Route = createFileRoute("/receivers/operator")({
 });
 
 function OperatorDashboard() {
+  usePageTitle("Régie Opérateur");
   // Generate a unique ID for this operator instance (allows multiple tabs)
   const [nodeId] = useState(() => generateOperatorNodeId());
 
@@ -81,7 +82,6 @@ function OperatorDashboard() {
   });
 
   // Connect on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: connect is stable, run once on mount
   useEffect(() => {
     operator.connect();
   }, []);

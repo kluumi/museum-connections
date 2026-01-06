@@ -112,7 +112,6 @@ export function useOperatorManager(
   }, [onLog]);
 
   // Initialize manager
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sources is stable and intentionally excluded
   useEffect(() => {
     const manager = new OperatorManager({
       nodeId,

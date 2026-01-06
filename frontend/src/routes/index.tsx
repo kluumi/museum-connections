@@ -9,12 +9,15 @@ import {
   SenderCard,
 } from "@/components/home";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { usePageTitle } from "@/hooks";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
 function HomePage() {
+  usePageTitle("Accueil");
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">

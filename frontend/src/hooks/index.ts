@@ -21,6 +21,8 @@ export * from "./useMicrophoneChange";
 // Operator
 export * from "./useOperatorConnections";
 export * from "./useOperatorManager";
+// Page title
+export * from "./usePageTitle";
 // Receiver
 export * from "./useReceiverManager";
 // Sender

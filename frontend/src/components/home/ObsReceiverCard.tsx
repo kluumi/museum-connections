@@ -1,6 +1,5 @@
 // ObsReceiverCard - Card component for OBS receiver links
 
-import { Link } from "@tanstack/react-router";
 import { Check, Copy, ExternalLink, Monitor } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -110,7 +109,7 @@ export function ObsReceiverCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link to={href}>
+                <a href={href} target="_blank" rel="noopener noreferrer">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -118,7 +117,7 @@ export function ObsReceiverCard({
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>
-                </Link>
+                </a>
               </TooltipTrigger>
               <TooltipContent>Ouvrir dans un nouvel onglet</TooltipContent>
             </Tooltip>

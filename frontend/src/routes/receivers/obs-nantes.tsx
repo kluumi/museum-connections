@@ -5,6 +5,7 @@ import {
   NodeId,
   RECEIVER_SOURCE,
 } from "@/constants/node-ids";
+import { usePageTitle } from "@/hooks";
 import { useReceiverManager } from "@/hooks/useReceiverManager";
 
 export const Route = createFileRoute("/receivers/obs-nantes")({
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/receivers/obs-nantes")({
 });
 
 function ObsNantesReceiver() {
+  usePageTitle("OBS Nantes");
+
   const nodeId = NodeId.OBS_NANTES;
   const sourceId = RECEIVER_SOURCE[nodeId]; // "paris"
   const displayName = getNodeDisplayName(nodeId);

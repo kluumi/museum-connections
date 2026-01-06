@@ -34,7 +34,6 @@ export function FullscreenVideo({ stream, className }: FullscreenVideoProps) {
   }, [isMuted]);
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: div is needed to wrap video element for fullscreen layout
     <div
       role="button"
       tabIndex={0}

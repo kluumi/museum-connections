@@ -76,7 +76,6 @@ export function useUserMedia(
     (overrides?: {
       cameraId?: string;
       microphoneId?: string;
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Builds constraints from video settings and device selections
     }): MediaStreamConstraints => {
       const video: MediaTrackConstraints = {};
       const audio: MediaTrackConstraints = {};
@@ -359,7 +358,6 @@ export function useUserMedia(
   // Apply video constraints by replacing the video track with a new one
   // This is more reliable than applyConstraints() which often doesn't work on active tracks
   const applyVideoConstraints = useCallback(
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex track replacement logic for applying constraints
     async (settings: VideoSettings): Promise<ApplyConstraintsResult | null> => {
       mediaLogger.debug("applyVideoConstraints called with:", settings);
       mediaLogger.debug(
@@ -614,7 +612,9 @@ export function useUserMedia(
 
         // RECOVERY: If we failed to get a new stream, try to recover by getting
         // ANY stream from the same camera. This prevents leaving the user with black video.
-        mediaLogger.warn("Attempting recovery - getting default stream from camera...");
+        mediaLogger.warn(
+          "Attempting recovery - getting default stream from camera...",
+        );
         try {
           const recoveryStream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: { exact: currentSettings.deviceId } },
@@ -627,7 +627,9 @@ export function useUserMedia(
               streamRef.current.removeTrack(t);
             }
             streamRef.current.addTrack(recoveryTrack);
-            mediaLogger.info("Recovery successful - video restored with default settings");
+            mediaLogger.info(
+              "Recovery successful - video restored with default settings",
+            );
             return {
               track: recoveryTrack,
               actualWidth: recoveryTrack.getSettings().width ?? 0,

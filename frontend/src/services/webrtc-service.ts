@@ -114,7 +114,10 @@ export class WebRTCService {
   private iceServers: RTCIceServer[];
 
   // ICE candidate buffering - includes sessionId to prevent stale candidates
-  private pendingCandidates: { candidate: RTCIceCandidateInit; sessionId: number }[] = [];
+  private pendingCandidates: {
+    candidate: RTCIceCandidateInit;
+    sessionId: number;
+  }[] = [];
   private remoteDescriptionSet = false;
 
   // Session tracking - prevents stale ICE candidates from old sessions
@@ -550,7 +553,7 @@ export class WebRTCService {
 
       if (maxBitrate === "auto") {
         // Remove bitrate limit
-        delete params.encodings[0].maxBitrate;
+        params.encodings[0].maxBitrate = undefined;
         statsLogger.debug("Removed bitrate limit (auto mode)");
       } else {
         // Set max bitrate in bits per second
@@ -757,7 +760,8 @@ export class WebRTCService {
     const currentSessionCandidates = this.pendingCandidates.filter(
       (c) => c.sessionId === this.sessionId,
     );
-    const staleCandidates = this.pendingCandidates.length - currentSessionCandidates.length;
+    const staleCandidates =
+      this.pendingCandidates.length - currentSessionCandidates.length;
 
     if (staleCandidates > 0) {
       webrtcLogger.debug(

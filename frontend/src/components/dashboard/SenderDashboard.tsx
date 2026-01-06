@@ -35,7 +35,6 @@ interface SenderDashboardProps {
   cityName: string;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Main sender dashboard with streaming, device management, and WebRTC
 export function SenderDashboard({
   nodeId,
   accentColor,
@@ -180,7 +179,9 @@ export function SenderDashboard({
           }
         } else {
           // Handler not ready yet - queue for later
-          console.log("📹 Remote start requested but handler not ready, queuing...");
+          console.log(
+            "📹 Remote start requested but handler not ready, queuing...",
+          );
           pendingControlAction.current = "start";
         }
       } else if (action === "stop") {
@@ -191,7 +192,9 @@ export function SenderDashboard({
           }
         } else {
           // Handler not ready yet - queue for later
-          console.log("📹 Remote stop requested but handler not ready, queuing...");
+          console.log(
+            "📹 Remote stop requested but handler not ready, queuing...",
+          );
           pendingControlAction.current = "stop";
         }
       }
@@ -206,7 +209,7 @@ export function SenderDashboard({
   useEffect(() => {
     stream.connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stream.connect]);
 
   // Listen for duplicate sender block event
   useEffect(() => {
@@ -389,7 +392,8 @@ export function SenderDashboard({
           // Log camera selection - use getState() to get fresh cameras after enumeration
           const freshCameras = useStore.getState().cameras;
           const cameraName =
-            freshCameras.find((c) => c.deviceId === cameraId)?.label || cameraId;
+            freshCameras.find((c) => c.deviceId === cameraId)?.label ||
+            cameraId;
           addLog(`Caméra: ${cameraName}`, "info");
         } else if (!cameraId) {
           // No camera selected
@@ -405,12 +409,7 @@ export function SenderDashboard({
     };
 
     initDevices();
-  }, [
-    enumerateDevices,
-    addLog,
-    adoptStream,
-    setSelectedCameraDirectly,
-  ]);
+  }, [enumerateDevices, addLog, adoptStream, setSelectedCameraDirectly]);
 
   // Check if auto-restart is pending (was streaming before refresh, waiting for localStream)
   // If so, skip page_opened - we'll send stream_started when auto-restart completes
@@ -470,7 +469,7 @@ export function SenderDashboard({
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [streamLoading, streamState]);
+  }, [streamLoading, streamState, streamStateRef.current.status]);
 
   // Apply persisted bitrate and codec settings when OBS WebRTC connection is established
   const prevObsState = useRef<ConnectionState>(ConnectionState.DISCONNECTED);
@@ -530,8 +529,9 @@ export function SenderDashboard({
         // 2. We already have the stream from preview, so skip startMedia()
         // Use the captured stream reference to avoid stale closure
         // Apply mute state IMMEDIATELY to stream (before WebRTC gets it)
-        const currentAudioEnabled =
-          useSettingsStore.getState().getSelectedDevices(nodeId).isAudioEnabled;
+        const currentAudioEnabled = useSettingsStore
+          .getState()
+          .getSelectedDevices(nodeId).isAudioEnabled;
         for (const track of capturedStream.getAudioTracks()) {
           track.enabled = currentAudioEnabled;
         }
@@ -664,8 +664,9 @@ export function SenderDashboard({
 
       // Apply mute state IMMEDIATELY to new stream (before WebRTC gets it)
       // This ensures the track's enabled state is correct from the start
-      const currentAudioEnabled =
-        useSettingsStore.getState().getSelectedDevices(nodeId).isAudioEnabled;
+      const currentAudioEnabled = useSettingsStore
+        .getState()
+        .getSelectedDevices(nodeId).isAudioEnabled;
       for (const track of mediaStream.getAudioTracks()) {
         track.enabled = currentAudioEnabled;
       }
@@ -730,7 +731,7 @@ export function SenderDashboard({
       stream.notifyStreamError(errorType, errorMessage);
       stream.stopStreaming("manual");
     }
-  }, [addLog, startMedia, streamState, isSignalingConnected, stream]);
+  }, [addLog, startMedia, streamState, isSignalingConnected, stream, nodeId]);
 
   // Stop streaming (keeps local preview running)
   const handleStopStream = useCallback(async () => {
@@ -762,11 +763,14 @@ export function SenderDashboard({
       console.log(`📹 Processing queued remote ${action} action`);
       if (action === "start" && streamStateRef.current.status === "idle") {
         handleStartStream();
-      } else if (action === "stop" && streamStateRef.current.status === "streaming") {
+      } else if (
+        action === "stop" &&
+        streamStateRef.current.status === "streaming"
+      ) {
         handleStopStream();
       }
     }
-  }, [handleStartStream, handleStopStream]);
+  }, [handleStartStream, handleStopStream, streamStateRef.current.status]);
 
   // Notify server when page is closed or refreshed
   useEffect(() => {

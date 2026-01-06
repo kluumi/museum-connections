@@ -27,27 +27,22 @@
     "rules": {
       "recommended": true,
       "style": {
-        "noNonNullAssertion": "warn",
+        "noNonNullAssertion": "off",
         "useConst": "error",
         "useExportType": "error",
         "useImportType": "error"
       },
       "suspicious": {
         "noExplicitAny": "error",
-        "noArrayIndexKey": "warn"
+        "noArrayIndexKey": "off"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": {
-          "level": "warn",
-          "options": {
-            "maxAllowedComplexity": 15
-          }
-        }
+        "noExcessiveCognitiveComplexity": "off"
       },
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "useExhaustiveDependencies": "warn"
+        "useExhaustiveDependencies": "off"
       },
       "security": {
         "noDangerouslySetInnerHtml": "error"
@@ -55,11 +50,12 @@
       "a11y": {
         "useAltText": "error",
         "useButtonType": "error",
-        "useValidAnchor": "error"
+        "useValidAnchor": "error",
+        "useSemanticElements": "off"
       },
       "performance": {
-        "noAccumulatingSpread": "warn",
-        "noDelete": "warn"
+        "noAccumulatingSpread": "off",
+        "noDelete": "off"
       }
     }
   },

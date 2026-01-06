@@ -74,8 +74,8 @@ export class MediaErrorBoundary extends Component<Props, State> {
         </div>
 
         <div className="space-y-2 text-left text-sm text-muted-foreground">
-          {getMediaErrorHints(errorType).map((hint, i) => (
-            <p key={i}>• {hint}</p>
+          {getMediaErrorHints(errorType).map((hint) => (
+            <p key={hint}>• {hint}</p>
           ))}
         </div>
 

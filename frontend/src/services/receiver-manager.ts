@@ -301,7 +301,9 @@ export class ReceiverManager {
 
     // Skip if we're in the middle of a retry cycle (prevents race condition)
     if (this.isRetrying) {
-      webrtcLogger.debug("Ignoring offer - retry in progress, will request new offer shortly");
+      webrtcLogger.debug(
+        "Ignoring offer - retry in progress, will request new offer shortly",
+      );
       return;
     }
 
@@ -326,7 +328,7 @@ export class ReceiverManager {
       {
         onTrack: (event) => {
           mediaLogger.info(`Received remote track from ${this.sourceId}`);
-          if (event.streams && event.streams[0]) {
+          if (event.streams?.[0]) {
             this._remoteStream = event.streams[0];
             this.onRemoteStream?.(this._remoteStream);
           }
@@ -444,7 +446,11 @@ export class ReceiverManager {
 
       // Retry if source is available and we're not connected
       // (also retry if we were stuck in CONNECTING and just closed)
-      if (this.isSourceConnected && !isConnected && (!isConnecting || isConnectingStuck)) {
+      if (
+        this.isSourceConnected &&
+        !isConnected &&
+        (!isConnecting || isConnectingStuck)
+      ) {
         webrtcLogger.debug(`Retrying offer request to ${this.sourceId}`);
         this.signaling.requestOffer(this.sourceId);
       }

@@ -114,7 +114,6 @@ export function SenderVideoPreview({
         !selectedCameraId &&
         !isInitializing &&
         !isLoadingCamera && (
-          // biome-ignore lint/a11y/useSemanticElements: div needed for absolute positioning overlay
           <div
             role="button"
             tabIndex={0}

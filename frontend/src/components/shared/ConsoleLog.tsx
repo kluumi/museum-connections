@@ -68,7 +68,6 @@ export function ConsoleLog({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is intentional instead of entries object
   useEffect(() => {
     if (scrollRef.current && !isCollapsed) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
