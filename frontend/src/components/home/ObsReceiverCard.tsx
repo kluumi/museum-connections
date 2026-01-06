@@ -34,9 +34,12 @@ export function ObsReceiverCard({
 }: ObsReceiverCardProps) {
   const [copied, setCopied] = useState(false);
 
-  // Build the full URL for OBS
+  // Build the full URL for OBS (include base path for GitHub Pages)
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, ""); // Remove trailing slash
   const fullUrl =
-    typeof window !== "undefined" ? `${window.location.origin}${href}` : href;
+    typeof window !== "undefined"
+      ? `${window.location.origin}${basePath}${href}`
+      : href;
 
   const handleCopyUrl = useCallback(
     (e: React.MouseEvent) => {
@@ -109,7 +112,7 @@ export function ObsReceiverCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <a href={href} target="_blank" rel="noopener noreferrer">
+                <a href={`${basePath}${href}`} target="_blank" rel="noopener noreferrer">
                   <Button
                     variant="ghost"
                     size="icon"
