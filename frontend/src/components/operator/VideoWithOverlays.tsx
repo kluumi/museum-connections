@@ -7,6 +7,8 @@ interface VideoWithOverlaysProps {
   stream: MediaStream | null;
   isConnected: boolean;
   isMuted: boolean;
+  /** Volume level 0-100 */
+  volume: number;
   isLoading: "starting" | "stopping" | false;
   isFullscreen: boolean;
   noSignalMessage?: string;
@@ -21,6 +23,7 @@ export function VideoWithOverlays({
   stream,
   isConnected,
   isMuted,
+  volume,
   isLoading,
   isFullscreen,
   noSignalMessage,
@@ -41,6 +44,14 @@ export function VideoWithOverlays({
       }
     }
   }, [stream]);
+
+  // Apply volume to video element
+  useEffect(() => {
+    if (videoRef.current) {
+      // HTML video volume is 0.0-1.0, our volume is 0-100
+      videoRef.current.volume = volume / 100;
+    }
+  }, [volume]);
 
   return (
     <div className="group relative aspect-video bg-muted overflow-hidden">

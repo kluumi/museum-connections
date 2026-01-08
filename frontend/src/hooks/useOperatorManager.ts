@@ -7,6 +7,7 @@ import {
   type HeartbeatStatus,
   type LoadingState,
   OperatorManager,
+  type VoxState,
 } from "@/services";
 import { useStore } from "@/stores";
 
@@ -16,6 +17,7 @@ export interface SourceStateInfo {
   heartbeatStatus: HeartbeatStatus;
   loading: LoadingState;
   manuallyStopped: boolean;
+  voxState: VoxState;
 }
 
 export interface UseOperatorManagerOptions {
@@ -57,6 +59,7 @@ const DEFAULT_SOURCE_STATE: SourceStateInfo = {
   heartbeatStatus: null,
   loading: false,
   manuallyStopped: false,
+  voxState: { isVoxTriggered: false, isDucked: false },
 };
 
 /**
@@ -120,6 +123,11 @@ export function useOperatorManager(
         onLogRef.current?.(sourceId, message, level);
       },
       onSourceStateChange: (sourceId, state) => {
+        // Debug: always log VOX state changes (including unduck)
+        console.log(
+          `🎚️ Hook: onSourceStateChange for ${sourceId}:`,
+          state.voxState,
+        );
         setSourceStates((prev) => {
           const next = new Map(prev);
           next.set(sourceId, {
@@ -128,6 +136,7 @@ export function useOperatorManager(
             heartbeatStatus: state.heartbeatStatus,
             loading: state.loading,
             manuallyStopped: state.manuallyStopped,
+            voxState: state.voxState,
           });
           return next;
         });

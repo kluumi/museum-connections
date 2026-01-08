@@ -13,6 +13,8 @@ export interface UseStreamManagerOptions {
   obsTarget: NodeId;
   targetCity: string;
   onStreamControl?: (action: "start" | "stop") => void;
+  /** Called when receiving audio ducking command from remote sender */
+  onAudioDucking?: (ducking: boolean, gain: number) => void;
   addLog?: (
     message: string,
     level?: "info" | "warning" | "error" | "success",
@@ -63,6 +65,10 @@ export interface UseStreamManagerReturn {
   applyBitrateToAll: (bitrate: number | "auto") => void;
   applyCodecToAll: (codec: string | "auto") => void;
   setStreamingState: (streaming: boolean) => void;
+
+  // VOX Ducking support
+  /** Send audio ducking command to target node */
+  sendAudioDucking: (target: NodeId, ducking: boolean, gain?: number) => void;
 }
 
 /**
@@ -92,7 +98,14 @@ export interface UseStreamManagerReturn {
 export function useStreamManager(
   options: UseStreamManagerOptions,
 ): UseStreamManagerReturn {
-  const { nodeId, obsTarget, targetCity, onStreamControl, addLog } = options;
+  const {
+    nodeId,
+    obsTarget,
+    targetCity,
+    onStreamControl,
+    onAudioDucking,
+    addLog,
+  } = options;
 
   // Store integration - use individual selectors for stable references
   const setSignalingState = useStore((s) => s.setSignalingState);
@@ -109,12 +122,17 @@ export function useStreamManager(
   // Refs
   const managerRef = useRef<StreamManager | null>(null);
   const onStreamControlRef = useRef(onStreamControl);
+  const onAudioDuckingRef = useRef(onAudioDucking);
   const addLogRef = useRef(addLog);
 
   // Keep refs updated
   useEffect(() => {
     onStreamControlRef.current = onStreamControl;
   }, [onStreamControl]);
+
+  useEffect(() => {
+    onAudioDuckingRef.current = onAudioDucking;
+  }, [onAudioDucking]);
 
   useEffect(() => {
     addLogRef.current = addLog;
@@ -142,6 +160,9 @@ export function useStreamManager(
       onSignalingConnectedPeersChange: (peers) => {
         setLocalConnectedPeers(peers);
         setConnectedPeers(peers);
+      },
+      onAudioDucking: (ducking, gain) => {
+        onAudioDuckingRef.current?.(ducking, gain);
       },
     });
 
@@ -264,6 +285,15 @@ export function useStreamManager(
     managerRef.current?.setStreamingState(streaming);
   }, []);
 
+  const sendAudioDucking = useCallback(
+    (target: NodeId, ducking: boolean, gain: number = 0.15) => {
+      managerRef.current
+        ?.getSignalingService()
+        .sendAudioDucking(target, ducking, gain);
+    },
+    [],
+  );
+
   return {
     manager: managerRef.current,
     isSignalingConnected,
@@ -290,5 +320,6 @@ export function useStreamManager(
     applyBitrateToAll,
     applyCodecToAll,
     setStreamingState,
+    sendAudioDucking,
   };
 }

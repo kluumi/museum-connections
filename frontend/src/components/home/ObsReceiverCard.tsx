@@ -112,7 +112,11 @@ export function ObsReceiverCard({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <a href={`${basePath}${href}`} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={`${basePath}${href}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Button
                     variant="ghost"
                     size="icon"

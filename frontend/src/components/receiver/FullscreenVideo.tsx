@@ -1,4 +1,4 @@
-import { Loader2, VolumeX } from "lucide-react";
+import { Radio, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -68,15 +68,10 @@ export function FullscreenVideo({ stream, className }: FullscreenVideoProps) {
         </div>
       )}
 
-      {/* No stream - loading spinner */}
+      {/* No stream - subtle icon at bottom */}
       {!stream && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
-            <p className="text-lg text-muted-foreground">
-              En attente du flux...
-            </p>
-          </div>
+        <div className="absolute inset-x-0 bottom-8 flex justify-center">
+          <Radio className="h-5 w-5 text-white/30" />
         </div>
       )}
 

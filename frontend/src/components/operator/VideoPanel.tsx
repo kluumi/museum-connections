@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StreamingBadge } from "@/components/shared/StatusBadge";
+import { VoxBadge } from "@/components/shared/VoxBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ConnectionState } from "@/constants/connection-states";
 import type { NodeId } from "@/constants/node-ids";
@@ -36,6 +37,10 @@ interface VideoPanelProps {
   isObsConnected?: boolean;
   /** If true, show "Arrêté" instead of "Reconnexion..." when WebRTC is reconnecting */
   manuallyStopped?: boolean;
+  /** VOX state - is this sender triggering ducking (TX) */
+  isVoxTriggered?: boolean;
+  /** VOX state - is this sender being ducked (RX) */
+  isDucked?: boolean;
 }
 
 const accentStyles = {
@@ -64,10 +69,13 @@ export function VideoPanel({
   obsReceiverId,
   isObsConnected = false,
   manuallyStopped = false,
+  isVoxTriggered = false,
+  isDucked = false,
 }: VideoPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [volume, setVolume] = useState(0); // 0-100, starts muted
 
   const styles = accentStyles[accentColor];
 
@@ -103,6 +111,9 @@ export function VideoPanel({
           </CardTitle>
 
           <div className="flex items-center gap-2">
+            {/* VOX Badges */}
+            {isVoxTriggered && <VoxBadge type="tx" />}
+            {isDucked && <VoxBadge type="rx" />}
             <SenderStatusBadge title={title} isAvailable={isSenderAvailable} />
             {obsReceiverId && <ObsStatusBadge isConnected={isObsConnected} />}
             {connectionState && (
@@ -123,6 +134,7 @@ export function VideoPanel({
             stream={stream}
             isConnected={isConnected}
             isMuted={isMuted}
+            volume={volume}
             isLoading={isLoading}
             isFullscreen={isFullscreen}
             noSignalMessage={noSignalMessage}
@@ -142,6 +154,7 @@ export function VideoPanel({
             onStreamControl={onStreamControl}
             isLoading={isLoading}
             onMuteChange={setIsMuted}
+            onVolumeChange={setVolume}
           />
         </div>
 

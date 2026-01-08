@@ -108,6 +108,9 @@ frontend/
 │   │   ├── useUserMedia.ts         # MediaStream + constraints
 │   │   ├── useMetrics.ts           # Per-peer metrics access
 │   │   ├── useMetricsSync.ts       # EventBus → Zustand bridge
+│   │   ├── useAudioDucking.ts      # Audio gain control for ducking
+│   │   ├── useVoxController.ts     # VOX detection + remote ducking
+│   │   ├── useVoxDucking.ts        # Combined VOX detection + reception
 │   │   └── index.ts
 │   │
 │   ├── services/                   # Non-React business logic
@@ -249,6 +252,9 @@ class SignalingService {
   notifyStreamStopped(reason: StopReason): void;
   notifyStreamRestored(): void;
   notifyPageOpened(): void;
+
+  // VOX ducking
+  sendAudioDucking(target: NodeId, ducking: boolean, gain: number): void;
 
   // Event handlers
   on(event: string, handler: Function): void;
@@ -396,6 +402,82 @@ function useWebRTC(
 }
 ```
 
+### useAudioDucking
+
+Applies audio gain reduction to a MediaStream using Web Audio API.
+
+```typescript
+function useAudioDucking(
+  stream: MediaStream | null,
+  options?: {
+    enabled?: boolean;        // Default: true
+    duckedGain?: number;      // Gain when ducked (0-1), default: 0.15
+    fadeTime?: number;        // Smooth transition time (ms), default: 50
+  }
+) {
+  return {
+    isDucking: boolean;              // Whether ducking is active
+    currentGain: number;             // Current gain value (0-1)
+    duck: (gain?: number) => void;   // Apply ducking
+    unduck: () => void;              // Release ducking
+    processedStream: MediaStream | null;  // Stream with gain control
+  };
+}
+```
+
+### useVoxController
+
+Monitors local audio and sends ducking commands to remote party.
+
+```typescript
+function useVoxController(
+  localStream: MediaStream | null,
+  signaling: SignalingService | null,
+  targetNodeId: NodeId,
+  options?: {
+    enabled?: boolean;              // Default: true
+    activationThreshold?: number;   // Level to trigger (0-1), default: 0.25
+    deactivationThreshold?: number; // Level to release (0-1), default: 0.15
+    holdTime?: number;              // Hold before release (ms), default: 400
+    duckedGain?: number;            // Gain to request (0-1), default: 0.15
+    checkInterval?: number;         // Audio check interval (ms), default: 50
+  }
+) {
+  return {
+    isTriggered: boolean;            // VOX currently triggered
+    audioLevel: number;              // Current audio level (0-1)
+    triggerDucking: () => void;      // Manual trigger (PTT mode)
+    releaseDucking: () => void;      // Manual release
+  };
+}
+```
+
+### useVoxDucking
+
+Combined hook for VOX detection and ducking reception.
+
+```typescript
+function useVoxDucking(
+  localStream: MediaStream | null,
+  options?: {
+    enabled?: boolean;
+    activationThreshold?: number;
+    deactivationThreshold?: number;
+    holdTime?: number;
+    duckedGain?: number;
+  }
+) {
+  return {
+    isVoxTriggered: boolean;     // Local speech detected
+    isDucked: boolean;           // Being ducked by remote
+    localAudioLevel: number;     // Current local level (0-1)
+    currentGain: number;         // Current gain applied (0-1)
+    handleDuckingCommand: (ducking: boolean, gain: number) => void;
+    sendDuckingToRemote: (ducking: boolean) => void;
+  };
+}
+```
+
 ## State Management
 
 ### Store Slices
@@ -512,6 +594,32 @@ const RESOLUTION_CONSTRAINTS = {
   'VGA (4:3)': { width: 640, height: 480 },
   '360p': { width: 640, height: 360 },
   'QVGA': { width: 320, height: 240 },
+};
+```
+
+### Signaling Message Types
+
+```typescript
+// VOX Ducking control (sender -> sender)
+interface AudioDuckingMessage {
+  type: 'audio_ducking';
+  target: NodeId;
+  ducking: boolean;  // Whether to duck
+  gain: number;      // Gain level when ducked (0-1)
+}
+```
+
+### VOX Ducking Configuration
+
+```typescript
+// config/webrtc.ts
+const VOX_DUCKING_CONFIG = {
+  activationThreshold: 0.25,    // Level to trigger ducking
+  deactivationThreshold: 0.15,  // Level to release (hysteresis)
+  holdTime: 400,                // ms to hold before release
+  duckedGain: 0.15,             // 15% volume when ducked
+  fadeTime: 50,                 // Smooth transition time (ms)
+  checkInterval: 50,            // Audio monitoring interval (ms)
 };
 ```
 
@@ -704,6 +812,9 @@ export const createMySlice: StateCreator<
 ▶️ Stream started
 📹 Camera / Video track
 🎤 Microphone / Audio track
+🎙️ VOX detection / speech events
+🎚️ Audio ducking / gain control
+🔇 Audio muted / no tracks
 ⚠️ Warning
 ```
 

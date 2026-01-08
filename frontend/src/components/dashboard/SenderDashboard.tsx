@@ -5,6 +5,7 @@ import {
   type LogEntry,
 } from "@/components/shared/ConsoleLog";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { VOX_DUCKING_CONFIG } from "@/config/webrtc";
 import { ConnectionState } from "@/constants/connection-states";
 import {
   NODE_PRIMARY_TARGET,
@@ -20,6 +21,7 @@ import { useStreamManager } from "@/hooks/useStreamManager";
 import { useStreamState } from "@/hooks/useStreamState";
 import { useUserMedia } from "@/hooks/useUserMedia";
 import { useVideoSettingsSync } from "@/hooks/useVideoSettingsSync";
+import { getRemoteSenderTarget } from "@/hooks/useVoxDucking";
 import { getErrorMessage, handleError } from "@/lib/errors";
 import { eventBus } from "@/lib/events";
 import { useSettingsStore, useStore } from "@/stores";
@@ -67,6 +69,7 @@ export function SenderDashboard({
     setSelectedDevices,
     getStreamingState,
     setStreamingState,
+    voxSettings,
   } = useSettingsStore();
 
   // Get audio enabled state from persisted settings
@@ -130,6 +133,9 @@ export function SenderDashboard({
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   // Initial stream from enumerateDevices - used to avoid extra getUserMedia call on first camera selection
   const [initialStream, setInitialStream] = useState<MediaStream | null>(null);
+  // VOX Ducking state
+  const [isDucked, setIsDucked] = useState(false);
+  const [isVoxTriggered, setIsVoxTriggered] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -165,6 +171,9 @@ export function SenderDashboard({
   // Queue for pending remote control actions received before handlers are ready
   const pendingControlAction = useRef<"start" | "stop" | null>(null);
 
+  // Remote sender target for VOX ducking (Nantes -> Paris, Paris -> Nantes)
+  const remoteSenderTarget = getRemoteSenderTarget(nodeId);
+
   // Stream manager - handles all signaling and WebRTC connections
   const stream = useStreamManager({
     nodeId,
@@ -196,6 +205,28 @@ export function SenderDashboard({
             "📹 Remote stop requested but handler not ready, queuing...",
           );
           pendingControlAction.current = "stop";
+        }
+      }
+    },
+    onAudioDucking: (ducking, gain) => {
+      // Received ducking command from remote sender
+      console.log(
+        `🎚️ VOX: ${ducking ? "DUCKED" : "UNDUCKED"} by remote (gain: ${gain})`,
+      );
+      setIsDucked(ducking);
+
+      // Apply gain to local audio track
+      if (localStreamRef.current) {
+        const audioTracks = localStreamRef.current.getAudioTracks();
+        for (const track of audioTracks) {
+          // Use track constraints to adjust gain (limited browser support)
+          // For now, we'll mute/unmute based on ducking with gain threshold
+          if (ducking && gain < 0.5) {
+            // Heavy ducking - reduce to near-mute
+            track.enabled = gain > 0.01;
+          } else {
+            track.enabled = isAudioEnabled;
+          }
         }
       }
     },
@@ -857,6 +888,131 @@ export function SenderDashboard({
     }
   }, [localStream, isAudioEnabled]);
 
+  // VOX Monitoring - detect local speech and send ducking commands to remote sender
+  // Only enabled for Nantes (to duck Paris) since Paris environment is too noisy
+  useEffect(() => {
+    // Only enable VOX for Nantes
+    if (nodeId !== NodeId.NANTES) return;
+    if (!localStream || !isStreaming || !stream.isSignalingConnected) return;
+
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+
+    console.log("🎙️ VOX: Starting audio monitoring for", nodeId);
+
+    // Create audio context for level monitoring
+    const audioContext = new AudioContext();
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.8;
+
+    const source = audioContext.createMediaStreamSource(localStream);
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let isVoxActive = false;
+    let holdTimeout: ReturnType<typeof setTimeout> | null = null;
+    let lastSentState: boolean | null = null;
+    let animationId: number | null = null;
+    let lastUpdate = 0;
+
+    // Use voxSettings from store (reactive to changes)
+    const { activationThreshold, deactivationThreshold, holdTime } =
+      voxSettings;
+    const { checkInterval } = VOX_DUCKING_CONFIG; // checkInterval stays constant
+
+    const sendDucking = (ducking: boolean) => {
+      if (lastSentState === ducking) return;
+      console.log(
+        `🎙️ VOX: Sending ${ducking ? "DUCK" : "UNDUCK"} to ${remoteSenderTarget}`,
+      );
+      stream.sendAudioDucking(
+        remoteSenderTarget,
+        ducking,
+        voxSettings.duckedGain,
+      );
+      lastSentState = ducking;
+      setIsVoxTriggered(ducking);
+    };
+
+    const checkLevel = (timestamp: number) => {
+      if (timestamp - lastUpdate < checkInterval) {
+        animationId = requestAnimationFrame(checkLevel);
+        return;
+      }
+      lastUpdate = timestamp;
+
+      analyser.getByteTimeDomainData(dataArray);
+
+      // Calculate RMS level
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const sample = (dataArray[i] - 128) / 128;
+        sum += sample * sample;
+      }
+      const rms = Math.sqrt(sum / dataArray.length);
+      const level = Math.min(1, rms * 3);
+
+      // VOX state machine
+      if (!isVoxActive) {
+        if (level >= activationThreshold) {
+          console.log(`🎙️ VOX: Speech detected (level: ${level.toFixed(2)})`);
+          isVoxActive = true;
+          sendDucking(true);
+          if (holdTimeout) {
+            clearTimeout(holdTimeout);
+            holdTimeout = null;
+          }
+        }
+      } else {
+        if (level < deactivationThreshold) {
+          if (!holdTimeout) {
+            holdTimeout = setTimeout(() => {
+              console.log(`🎙️ VOX: Speech ended`);
+              isVoxActive = false;
+              sendDucking(false);
+              holdTimeout = null;
+            }, holdTime);
+          }
+        } else {
+          if (holdTimeout) {
+            clearTimeout(holdTimeout);
+            holdTimeout = null;
+          }
+        }
+      }
+
+      animationId = requestAnimationFrame(checkLevel);
+    };
+
+    animationId = requestAnimationFrame(checkLevel);
+
+    return () => {
+      console.log("🎙️ VOX: Stopping audio monitoring");
+      if (animationId) cancelAnimationFrame(animationId);
+      if (holdTimeout) clearTimeout(holdTimeout);
+      // Release ducking when stopping
+      if (lastSentState === true) {
+        stream.sendAudioDucking(remoteSenderTarget, false, 1);
+      }
+      source.disconnect();
+      analyser.disconnect();
+      audioContext.close();
+    };
+  }, [
+    localStream,
+    isStreaming,
+    stream.isSignalingConnected,
+    stream.sendAudioDucking,
+    nodeId,
+    remoteSenderTarget,
+    voxSettings,
+  ]);
+
   // Show blocking overlay if duplicate sender detected
   if (blockedMessage) {
     return <SenderBlockedOverlay message={blockedMessage} />;
@@ -912,6 +1068,8 @@ export function SenderDashboard({
             webrtcConnectionState={webrtcConnectionState}
             isObsConnected={isObsConnected}
             isAudioEnabled={isAudioEnabled}
+            isDucked={isDucked}
+            isVoxTriggered={isVoxTriggered}
             isFullscreen={isFullscreen}
             onFullscreenToggle={handleFullscreen}
             onStartStream={handleStartStream}

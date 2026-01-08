@@ -61,5 +61,5 @@ export const useSettingsStore = useStore;
 export type { ConnectionSlice } from "./connectionSlice";
 export type { CameraCapabilities, DevicesSlice } from "./devicesSlice";
 export type { MetricsSlice } from "./metricsSlice";
-export type { SettingsSlice, Theme } from "./settingsSlice";
+export type { SettingsSlice, Theme, VoxSettings } from "./settingsSlice";
 export type { StreamSlice } from "./streamSlice";

@@ -359,6 +359,18 @@ export class SignalingService {
     this.send({ type: "stream_error", error, message });
   }
 
+  /**
+   * Send audio ducking command to a target sender
+   * Used for VOX (Voice-Operated Switch) ducking between locations
+   */
+  sendAudioDucking(
+    target: NodeId,
+    ducking: boolean,
+    gain: number = 0.15,
+  ): void {
+    this.send({ type: "audio_ducking", target, ducking, gain });
+  }
+
   // Private methods
 
   private handleOpen = (): void => {

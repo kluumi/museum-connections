@@ -5,6 +5,7 @@ import {
   Mic,
   MicOff,
   MonitorPlay,
+  Radio,
   RotateCcw,
   Settings2,
   SlidersHorizontal,
@@ -28,10 +29,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import type { CameraCapabilities } from "@/stores";
+import { type CameraCapabilities, useSettingsStore } from "@/stores";
 import type { VideoSettings } from "@/types";
 import { DeviceSelector } from "./DeviceSelector";
 import { VideoSettings as VideoSettingsPanel } from "./VideoSettings";
+import { VoxSettingsPanel } from "./VoxSettingsPanel";
 
 interface SenderSettingsSheetProps {
   // Sheet state
@@ -73,6 +75,9 @@ export function SenderSettingsSheet({
   cameraCapabilities,
   onReset,
 }: SenderSettingsSheetProps) {
+  // Get VOX settings from store
+  const { voxSettings, setVoxSettings, resetVoxSettings } = useSettingsStore();
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
@@ -91,7 +96,7 @@ export function SenderSettingsSheet({
         <div className="flex-1 overflow-y-auto">
           <Accordion
             type="multiple"
-            defaultValue={["sources", "video"]}
+            defaultValue={["sources", "video", "vox"]}
             className="w-full"
           >
             {/* Sources Section */}
@@ -168,6 +173,23 @@ export function SenderSettingsSheet({
                   onSettingsChange={onVideoSettingsChange}
                   cameraCapabilities={cameraCapabilities}
                   disabled={!selectedCameraId}
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* VOX Ducking Settings Section */}
+            <AccordionItem value="vox" className="border-0 px-4">
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Radio className="h-4 w-4" />
+                  VOX Ducking
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-4">
+                <VoxSettingsPanel
+                  settings={voxSettings}
+                  onSettingsChange={setVoxSettings}
+                  onReset={resetVoxSettings}
                 />
               </AccordionContent>
             </AccordionItem>

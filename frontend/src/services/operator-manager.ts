@@ -23,6 +23,14 @@ import { WebRTCService } from "./webrtc-service";
 export type { HeartbeatStatus } from "@/lib/heartbeat-monitor";
 export type LoadingState = "starting" | "stopping" | false;
 
+// VOX state per source (which sender is TX/RX)
+export interface VoxState {
+  /** This sender is transmitting (triggered VOX) */
+  isVoxTriggered: boolean;
+  /** This sender is being ducked (receiving ducking command) */
+  isDucked: boolean;
+}
+
 // Callback types
 export type OperatorLogCallback = (
   sourceId: NodeId,
@@ -38,6 +46,7 @@ export type SourceStateChangeCallback = (
     heartbeatStatus: HeartbeatStatus;
     loading: LoadingState;
     manuallyStopped: boolean;
+    voxState: VoxState;
   },
 ) => void;
 
@@ -64,6 +73,7 @@ interface SourceState {
   stopByOperator: boolean;
   pendingOffer: RTCSessionDescriptionInit | null;
   pendingCandidates: RTCIceCandidateInit[];
+  voxState: VoxState;
 }
 
 /**
@@ -170,6 +180,7 @@ export class OperatorManager {
       stopByOperator: false,
       pendingOffer: null,
       pendingCandidates: [],
+      voxState: { isVoxTriggered: false, isDucked: false },
     };
   }
 
@@ -290,12 +301,18 @@ export class OperatorManager {
 
     Object.assign(state, updates);
 
+    this.emitSourceState(sourceId, state);
+  }
+
+  /** Helper to emit source state change - single point of truth */
+  private emitSourceState(sourceId: NodeId, state: SourceState): void {
     this.onSourceStateChange?.(sourceId, {
       connectionState: state.connectionState,
       remoteStream: state.remoteStream,
       heartbeatStatus: state.heartbeatStatus,
       loading: state.loading,
       manuallyStopped: state.manuallyStopped,
+      voxState: state.voxState,
     });
   }
 
@@ -334,13 +351,7 @@ export class OperatorManager {
     // Sync offer requester state
     this.syncOfferRequesterState(sourceId);
 
-    this.onSourceStateChange?.(sourceId, {
-      connectionState: state.connectionState,
-      remoteStream: state.remoteStream,
-      heartbeatStatus: state.heartbeatStatus,
-      loading: state.loading,
-      manuallyStopped: state.manuallyStopped,
-    });
+    this.emitSourceState(sourceId, state);
 
     // Emit events
     if (isConnected && !wasConnected) {
@@ -372,13 +383,7 @@ export class OperatorManager {
       onTrack: (event) => {
         if (event.streams?.[0]) {
           state.remoteStream = event.streams[0];
-          this.onSourceStateChange?.(sourceId, {
-            connectionState: state.connectionState,
-            remoteStream: state.remoteStream,
-            heartbeatStatus: state.heartbeatStatus,
-            loading: state.loading,
-            manuallyStopped: state.manuallyStopped,
-          });
+          this.emitSourceState(sourceId, state);
         }
       },
       onConnectionStateChange: (newState) => {
@@ -474,9 +479,75 @@ export class OperatorManager {
       }
     }
 
+    // Handle audio ducking messages (VOX state between senders)
+    // These come from one sender targeting another sender
+    if (message.type === "audio_ducking") {
+      console.log(
+        "🎚️ Operator received audio_ducking:",
+        JSON.stringify(message),
+      );
+      if ("from" in message && "target" in message && "ducking" in message) {
+        const from = message.from as NodeId;
+        const target = message.target as NodeId;
+        const ducking = (message as { ducking: boolean }).ducking;
+        console.log(`🎚️ VOX: ${from} -> ${target}, ducking=${ducking}`);
+        this.handleAudioDucking(from, target, ducking);
+      } else {
+        console.warn(
+          "🎚️ Invalid audio_ducking message, missing fields:",
+          message,
+        );
+      }
+    }
+
     // Route source-specific messages
     if (message.from && this.sources.includes(message.from as NodeId)) {
       this.handleSourceMessage(message.from as NodeId, message);
+    }
+  }
+
+  /**
+   * Handle audio ducking message - updates VOX state for both sender and target
+   * @param senderId - The sender who triggered VOX (TX)
+   * @param targetId - The sender being ducked (RX)
+   * @param ducking - Whether ducking is active
+   */
+  private handleAudioDucking(
+    senderId: NodeId,
+    targetId: NodeId,
+    ducking: boolean,
+  ): void {
+    console.log(
+      `🎚️ handleAudioDucking: sender=${senderId}, target=${targetId}, ducking=${ducking}`,
+    );
+    console.log(`🎚️ Known sources:`, [...this.sourceStates.keys()]);
+
+    // Update TX state on the sender
+    const senderState = this.sourceStates.get(senderId);
+    if (senderState) {
+      console.log(
+        `🎚️ Updating TX state for ${senderId}: isVoxTriggered=${ducking}`,
+      );
+      senderState.voxState = {
+        ...senderState.voxState,
+        isVoxTriggered: ducking,
+      };
+      this.emitSourceState(senderId, senderState);
+    } else {
+      console.warn(`🎚️ No source state found for sender: ${senderId}`);
+    }
+
+    // Update RX state on the target
+    const targetState = this.sourceStates.get(targetId);
+    if (targetState) {
+      console.log(`🎚️ Updating RX state for ${targetId}: isDucked=${ducking}`);
+      targetState.voxState = {
+        ...targetState.voxState,
+        isDucked: ducking,
+      };
+      this.emitSourceState(targetId, targetState);
+    } else {
+      console.warn(`🎚️ No source state found for target: ${targetId}`);
     }
   }
 
@@ -534,13 +605,7 @@ export class OperatorManager {
             this.onLog?.(sourceId, "Flux émetteur prêt, connexion...", "info");
           }
         }
-        this.onSourceStateChange?.(sourceId, {
-          connectionState: state.connectionState,
-          remoteStream: state.remoteStream,
-          heartbeatStatus: state.heartbeatStatus,
-          loading: state.loading,
-          manuallyStopped: state.manuallyStopped,
-        });
+        this.emitSourceState(sourceId, state);
         break;
 
       case "stream_stopped":
@@ -617,13 +682,7 @@ export class OperatorManager {
       this.onLog?.(sourceId, "Flux arrêté par l'émetteur", "warning");
     }
 
-    this.onSourceStateChange?.(sourceId, {
-      connectionState: state.connectionState,
-      remoteStream: state.remoteStream,
-      heartbeatStatus: state.heartbeatStatus,
-      loading: state.loading,
-      manuallyStopped: state.manuallyStopped,
-    });
+    this.emitSourceState(sourceId, state);
   }
 
   private handleSourceDisconnected(sourceId: NodeId): void {
@@ -640,13 +699,7 @@ export class OperatorManager {
 
     this.onLog?.(sourceId, "Émetteur déconnecté", "warning");
 
-    this.onSourceStateChange?.(sourceId, {
-      connectionState: state.connectionState,
-      remoteStream: state.remoteStream,
-      heartbeatStatus: state.heartbeatStatus,
-      loading: state.loading,
-      manuallyStopped: state.manuallyStopped,
-    });
+    this.emitSourceState(sourceId, state);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -708,12 +761,6 @@ export class OperatorManager {
 
     // Update state and notify
     state.heartbeatStatus = status;
-    this.onSourceStateChange?.(sourceId, {
-      connectionState: state.connectionState,
-      remoteStream: state.remoteStream,
-      heartbeatStatus: state.heartbeatStatus,
-      loading: state.loading,
-      manuallyStopped: state.manuallyStopped,
-    });
+    this.emitSourceState(sourceId, state);
   }
 }

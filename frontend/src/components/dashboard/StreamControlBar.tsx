@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AudioLevelMeter } from "@/components/shared/AudioLevelMeter";
 import { StreamUptime } from "@/components/shared/StreamUptime";
+import { VoxBadge } from "@/components/shared/VoxBadge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,10 @@ interface StreamControlBarProps {
   selectedCameraId: string | null;
   isAudioEnabled: boolean;
 
+  // VOX Ducking state
+  isDucked?: boolean;
+  isVoxTriggered?: boolean;
+
   // OBS availability
   isObsConnected: boolean;
   isSignalingConnected: boolean;
@@ -75,6 +80,8 @@ export function StreamControlBar({
   localStream,
   selectedCameraId,
   isAudioEnabled,
+  isDucked = false,
+  isVoxTriggered = false,
   isObsConnected,
   isSignalingConnected,
   isFullscreen,
@@ -226,6 +233,12 @@ export function StreamControlBar({
           />
         </div>
       )}
+
+      {/* VOX Ducking Indicators - Always reserve space to prevent layout shift */}
+      <div className="flex gap-1 shrink-0 w-[120px] justify-end">
+        {isVoxTriggered && <VoxBadge type="tx" />}
+        {isDucked && <VoxBadge type="rx" />}
+      </div>
 
       {/* Fullscreen Toggle */}
       <Tooltip>

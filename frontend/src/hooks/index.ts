@@ -2,8 +2,8 @@
 // Provides a single entry point for hook imports
 
 // Audio
+export * from "./useAudioDucking";
 export * from "./useAudioLevel";
-
 // Camera/Microphone device changes
 export * from "./useCameraChange";
 // Connection and logging
@@ -37,6 +37,8 @@ export * from "./useStreamManager";
 export * from "./useStreamState";
 export * from "./useUserMedia";
 export * from "./useVideoSettingsSync";
+export * from "./useVoxController";
+export * from "./useVoxDucking";
 
 // WebRTC
 export * from "./useWebRTC";

@@ -93,6 +93,17 @@ export interface StreamControlMessage extends BaseMessage {
   action: "start" | "stop";
 }
 
+// VOX Ducking control (sender -> sender)
+// Sent when one sender detects speech and wants the other to duck their audio
+export interface AudioDuckingMessage extends BaseMessage {
+  type: "audio_ducking";
+  target: NodeId;
+  /** Whether ducking should be active */
+  ducking: boolean;
+  /** Gain level to apply when ducked (0-1) */
+  gain: number;
+}
+
 // Server -> Client messages
 export interface LoginSuccessMessage extends BaseMessage {
   type: "login_success";
@@ -140,7 +151,8 @@ export type ClientToServerMessage =
   | PageOpenedMessage
   | StreamHeartbeatMessage
   | StreamErrorMessage
-  | StreamControlMessage;
+  | StreamControlMessage
+  | AudioDuckingMessage;
 
 export type ServerToClientMessage =
   | LoginSuccessMessage
@@ -161,6 +173,7 @@ export type ServerToClientMessage =
   | StreamHeartbeatMessage
   | StreamErrorMessage
   | StreamControlMessage
+  | AudioDuckingMessage
   | ErrorMessage;
 
 export type SignalingMessage = ClientToServerMessage | ServerToClientMessage;
@@ -262,4 +275,10 @@ export function isLoginErrorMessage(
   msg: SignalingMessage,
 ): msg is LoginErrorMessage {
   return msg.type === "login_error";
+}
+
+export function isAudioDuckingMessage(
+  msg: SignalingMessage,
+): msg is AudioDuckingMessage {
+  return msg.type === "audio_ducking";
 }

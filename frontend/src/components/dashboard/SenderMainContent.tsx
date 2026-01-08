@@ -41,6 +41,10 @@ interface SenderMainContentProps {
   // Audio
   isAudioEnabled: boolean;
 
+  // VOX Ducking
+  isDucked?: boolean;
+  isVoxTriggered?: boolean;
+
   // Fullscreen
   isFullscreen: boolean;
   onFullscreenToggle: () => void;
@@ -80,6 +84,8 @@ export function SenderMainContent({
   webrtcConnectionState,
   isObsConnected,
   isAudioEnabled,
+  isDucked,
+  isVoxTriggered,
   isFullscreen,
   onFullscreenToggle,
   onStartStream,
@@ -128,6 +134,8 @@ export function SenderMainContent({
             localStream={localStream}
             selectedCameraId={selectedCameraId}
             isAudioEnabled={isAudioEnabled}
+            isDucked={isDucked}
+            isVoxTriggered={isVoxTriggered}
             isObsConnected={isObsConnected}
             isSignalingConnected={isSignalingConnected}
             isFullscreen={isFullscreen}

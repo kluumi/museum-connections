@@ -25,6 +25,7 @@ export type LogCallback = (
 ) => void;
 export type ConnectionStateCallback = (state: ConnectionState) => void;
 export type SignalingStateCallback = (state: SignalingState) => void;
+export type AudioDuckingCallback = (ducking: boolean, gain: number) => void;
 
 export interface StreamManagerOptions {
   nodeId: SenderNodeId;
@@ -37,6 +38,8 @@ export interface StreamManagerOptions {
   onObsConnectionStateChange?: ConnectionStateCallback;
   onSignalingStateChange?: SignalingStateCallback;
   onSignalingConnectedPeersChange?: (peers: NodeId[]) => void;
+  /** Called when receiving audio ducking command from remote sender */
+  onAudioDucking?: AudioDuckingCallback;
 }
 
 /**
@@ -84,6 +87,7 @@ export class StreamManager {
   private onObsConnectionStateChange?: ConnectionStateCallback;
   private onSignalingStateChange?: SignalingStateCallback;
   private onSignalingConnectedPeersChange?: (peers: NodeId[]) => void;
+  private onAudioDucking?: AudioDuckingCallback;
 
   constructor(options: StreamManagerOptions) {
     this.nodeId = options.nodeId;
@@ -95,6 +99,7 @@ export class StreamManager {
     this.onSignalingStateChange = options.onSignalingStateChange;
     this.onSignalingConnectedPeersChange =
       options.onSignalingConnectedPeersChange;
+    this.onAudioDucking = options.onAudioDucking;
 
     // Create signaling service
     this.signaling = new SignalingService(this.nodeId);
@@ -593,6 +598,15 @@ export class StreamManager {
     // Handle stream control from operator
     if (message.type === "stream_control") {
       this.onStreamControl?.(message.action);
+      return;
+    }
+
+    // Handle audio ducking from remote sender
+    if (message.type === "audio_ducking") {
+      webrtcLogger.debug(
+        `Received audio ducking: ${message.ducking ? "DUCK" : "UNDUCK"} (gain: ${message.gain})`,
+      );
+      this.onAudioDucking?.(message.ducking, message.gain);
       return;
     }
 

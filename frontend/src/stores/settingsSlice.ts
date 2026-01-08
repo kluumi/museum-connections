@@ -3,9 +3,30 @@
 // This slice is persisted to localStorage
 
 import type { StateCreator } from "zustand";
+import { VOX_DUCKING_CONFIG } from "@/config/webrtc";
 import type { VideoSettings } from "@/types";
 
 export type Theme = "light" | "dark" | "system";
+
+// VOX Ducking settings
+export interface VoxSettings {
+  /** Audio level threshold to trigger ducking (0-1). Lower = more sensitive */
+  activationThreshold: number;
+  /** Audio level threshold to release ducking (0-1). Lower than activation for hysteresis */
+  deactivationThreshold: number;
+  /** Time to wait before releasing ducking after audio drops below threshold (ms) */
+  holdTime: number;
+  /** Gain level when ducked (0-1). 0.15 = 15% volume */
+  duckedGain: number;
+}
+
+// Default VOX settings from config
+const defaultVoxSettings: VoxSettings = {
+  activationThreshold: VOX_DUCKING_CONFIG.activationThreshold,
+  deactivationThreshold: VOX_DUCKING_CONFIG.deactivationThreshold,
+  holdTime: VOX_DUCKING_CONFIG.holdTime,
+  duckedGain: VOX_DUCKING_CONFIG.duckedGain,
+};
 
 // Default video settings
 const defaultVideoSettings: VideoSettings = {
@@ -65,6 +86,11 @@ export interface SettingsSlice {
   streamingStates: Record<string, boolean>;
   getStreamingState: (nodeId: string) => boolean;
   setStreamingState: (nodeId: string, streaming: boolean) => void;
+
+  // VOX Ducking settings (global, not per-node)
+  voxSettings: VoxSettings;
+  setVoxSettings: (settings: Partial<VoxSettings>) => void;
+  resetVoxSettings: () => void;
 }
 
 const initialSettingsState = {
@@ -72,6 +98,7 @@ const initialSettingsState = {
   deviceVideoSettings: {} as Record<string, VideoSettings>,
   selectedDevices: {} as Record<string, DeviceSelection>,
   streamingStates: {} as Record<string, boolean>,
+  voxSettings: { ...defaultVoxSettings },
 };
 
 export const createSettingsSlice: StateCreator<
@@ -152,6 +179,17 @@ export const createSettingsSlice: StateCreator<
         [nodeId]: streaming,
       },
     })),
+
+  // VOX Ducking settings
+  setVoxSettings: (settings) =>
+    set((state) => ({
+      voxSettings: {
+        ...state.voxSettings,
+        ...settings,
+      },
+    })),
+
+  resetVoxSettings: () => set({ voxSettings: { ...defaultVoxSettings } }),
 });
 
 // Export the partialize function for persist middleware
@@ -161,4 +199,5 @@ export const settingsPartialize = <T extends SettingsSlice>(state: T) => ({
   deviceVideoSettings: state.deviceVideoSettings,
   selectedDevices: state.selectedDevices,
   streamingStates: state.streamingStates,
+  voxSettings: state.voxSettings,
 });

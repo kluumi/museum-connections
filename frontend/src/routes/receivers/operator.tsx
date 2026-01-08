@@ -91,9 +91,24 @@ function OperatorDashboard() {
   const nantesMetrics = peerMetrics.get(NodeId.NANTES) ?? null;
   const parisMetrics = peerMetrics.get(NodeId.PARIS) ?? null;
 
-  // Get source states
-  const nantesState = operator.getSourceState(NodeId.NANTES);
-  const parisState = operator.getSourceState(NodeId.PARIS);
+  // Get source states directly from sourceStates Map to ensure re-renders on state changes
+  // Using the Map directly instead of getSourceState() ensures React sees the dependency
+  const nantesState = operator.sourceStates.get(NodeId.NANTES) ?? {
+    connectionState: ConnectionState.DISCONNECTED,
+    remoteStream: null,
+    heartbeatStatus: null,
+    loading: false as const,
+    manuallyStopped: false,
+    voxState: { isVoxTriggered: false, isDucked: false },
+  };
+  const parisState = operator.sourceStates.get(NodeId.PARIS) ?? {
+    connectionState: ConnectionState.DISCONNECTED,
+    remoteStream: null,
+    heartbeatStatus: null,
+    loading: false as const,
+    manuallyStopped: false,
+    voxState: { isVoxTriggered: false, isDucked: false },
+  };
 
   const nantesConnected =
     nantesState.connectionState === ConnectionState.CONNECTED;
@@ -149,6 +164,8 @@ function OperatorDashboard() {
                   NodeId.OBS_PARIS,
                 )}
                 manuallyStopped={nantesState.manuallyStopped}
+                isVoxTriggered={nantesState.voxState.isVoxTriggered}
+                isDucked={nantesState.voxState.isDucked}
                 onStreamControl={(action) => {
                   operator.sendStreamControl(NodeId.NANTES, action);
                 }}
@@ -181,6 +198,8 @@ function OperatorDashboard() {
                   NodeId.OBS_NANTES,
                 )}
                 manuallyStopped={parisState.manuallyStopped}
+                isVoxTriggered={parisState.voxState.isVoxTriggered}
+                isDucked={parisState.voxState.isDucked}
                 onStreamControl={(action) => {
                   operator.sendStreamControl(NodeId.PARIS, action);
                 }}

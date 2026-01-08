@@ -43,6 +43,8 @@ interface VideoControlBarProps {
   isLoading?: "starting" | "stopping" | false;
   /** Callback when mute state changes */
   onMuteChange?: (isMuted: boolean) => void;
+  /** Callback when volume changes (0-100) */
+  onVolumeChange?: (volume: number) => void;
 }
 
 /**
@@ -60,6 +62,7 @@ export function VideoControlBar({
   onStreamControl,
   isLoading = false,
   onMuteChange,
+  onVolumeChange,
 }: VideoControlBarProps) {
   const [volume, setVolume] = useState(0); // 0-100, starts muted
   const previousVolumeRef = useRef(50);
@@ -69,14 +72,17 @@ export function VideoControlBar({
 
   const handleToggleMute = useCallback(() => {
     if (volume === 0) {
-      setVolume(previousVolumeRef.current || 50);
+      const newVolume = previousVolumeRef.current || 50;
+      setVolume(newVolume);
       onMuteChange?.(false);
+      onVolumeChange?.(newVolume);
     } else {
       previousVolumeRef.current = volume;
       setVolume(0);
       onMuteChange?.(true);
+      onVolumeChange?.(0);
     }
-  }, [volume, onMuteChange]);
+  }, [volume, onMuteChange, onVolumeChange]);
 
   const handleVolumeChange = useCallback(
     (values: number[]) => {
@@ -90,8 +96,9 @@ export function VideoControlBar({
       if (wasMuted !== willBeMuted) {
         onMuteChange?.(willBeMuted);
       }
+      onVolumeChange?.(newVolume);
     },
-    [volume, onMuteChange],
+    [volume, onMuteChange, onVolumeChange],
   );
 
   return (

@@ -182,6 +182,31 @@ export const MEDIA_CONSTRAINTS = {
 } as const;
 
 /**
+ * VOX Ducking configuration
+ * Used for automatic audio ducking when remote party speaks
+ * (Voice-Operated Switch - like walkie-talkie behavior)
+ */
+export const VOX_DUCKING_CONFIG = {
+  /** Audio level threshold to trigger ducking (0-1). Default: 0.25 */
+  activationThreshold: 0.25,
+
+  /** Audio level threshold to release ducking (0-1). Lower than activation for hysteresis */
+  deactivationThreshold: 0.15,
+
+  /** Time to wait before releasing ducking after audio drops below threshold (ms) */
+  holdTime: 400,
+
+  /** Gain level when ducked (0-1). 0.15 = 15% volume */
+  duckedGain: 0.15,
+
+  /** Time for smooth gain transitions (ms) */
+  fadeTime: 50,
+
+  /** Interval for checking audio levels (ms) */
+  checkInterval: 50,
+} as const;
+
+/**
  * Get RTCConfiguration with optional overrides
  */
 export function createRTCConfig(
