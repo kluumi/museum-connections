@@ -242,14 +242,25 @@ export function SenderDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.connect]);
 
-  // Listen for duplicate sender block event
+  // Listen for duplicate sender block event and clear on successful reconnection
   useEffect(() => {
-    const unsubscribe = eventBus.on("signaling:blocked", (data) => {
+    const unsubBlocked = eventBus.on("signaling:blocked", (data) => {
       if (data.nodeId === nodeId && data.reason === "already_connected") {
         setBlockedMessage(data.message);
       }
     });
-    return unsubscribe;
+
+    // Clear blocked state if we successfully reconnect
+    const unsubConnected = eventBus.on("signaling:connected", (data) => {
+      if (data.nodeId === nodeId) {
+        setBlockedMessage(null);
+      }
+    });
+
+    return () => {
+      unsubBlocked();
+      unsubConnected();
+    };
   }, [nodeId]);
 
   // User media - pass video settings for constraint application
