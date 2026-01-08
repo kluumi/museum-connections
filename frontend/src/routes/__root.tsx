@@ -1,17 +1,8 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
 import { ErrorBoundary } from "@/components/shared";
 import { ThemeProvider } from "@/components/theme";
 import { useMetricsSync } from "@/hooks/useMetricsSync";
-
-const TanStackRouterDevtools = import.meta.env.DEV
-  ? lazy(() =>
-      import("@tanstack/react-router-devtools").then((mod) => ({
-        default: mod.TanStackRouterDevtools,
-      })),
-    )
-  : () => null;
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -28,9 +19,6 @@ function RootLayout() {
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
-        <Suspense>
-          <TanStackRouterDevtools position="bottom-right" />
-        </Suspense>
       </div>
     </ThemeProvider>
   );
