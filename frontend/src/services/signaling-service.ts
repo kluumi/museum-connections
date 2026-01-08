@@ -406,6 +406,13 @@ export class SignalingService {
         return;
       }
 
+      // Handle login_success - emit event to clear any blocked state
+      if (message.type === "login_success") {
+        signalingLogger.info("Login successful");
+        eventBus.emit("signaling:login_success", { nodeId: this.nodeId });
+        // Continue to notify handlers below
+      }
+
       // Handle login_error - duplicate sender blocked
       if (message.type === "login_error") {
         signalingLogger.error("Login rejected:", message.message);

@@ -33,6 +33,7 @@ export type EventMap = {
   [key: string]: object;
   // Signaling events
   "signaling:connected": { nodeId: NodeId };
+  "signaling:login_success": { nodeId: NodeId };
   "signaling:disconnected": { nodeId: NodeId };
   "signaling:reconnecting": { nodeId: NodeId; attempt: number; delay: number };
   "signaling:error": { nodeId: NodeId; error: Error };

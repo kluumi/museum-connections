@@ -242,7 +242,7 @@ export function SenderDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.connect]);
 
-  // Listen for duplicate sender block event and clear on successful reconnection
+  // Listen for duplicate sender block event and clear on successful login
   useEffect(() => {
     const unsubBlocked = eventBus.on("signaling:blocked", (data) => {
       if (data.nodeId === nodeId && data.reason === "already_connected") {
@@ -250,8 +250,8 @@ export function SenderDashboard({
       }
     });
 
-    // Clear blocked state if we successfully reconnect
-    const unsubConnected = eventBus.on("signaling:connected", (data) => {
+    // Clear blocked state if login succeeds (after refresh when other tab is closed)
+    const unsubLoginSuccess = eventBus.on("signaling:login_success", (data) => {
       if (data.nodeId === nodeId) {
         setBlockedMessage(null);
       }
@@ -259,7 +259,7 @@ export function SenderDashboard({
 
     return () => {
       unsubBlocked();
-      unsubConnected();
+      unsubLoginSuccess();
     };
   }, [nodeId]);
 
