@@ -451,15 +451,21 @@ wss.on("connection", (ws, req) => {
       relayToTarget(data.target, data, ws, clientId);
       // Also broadcast to all observers (operator dashboards)
       const message = JSON.stringify({ ...data, from: clientId });
-      for (const [id, ws] of clients) {
+      for (const [id, clientWs] of clients) {
         // Skip sender and target - they already know
         if (id !== clientId && id !== data.target) {
-          safeSend(ws, message, id);
+          safeSend(clientWs, message, id);
         }
       }
-      log("DEBUG", `Audio ducking: ${data.ducking ? "DUCK" : "UNDUCK"}`, {
+      // Count how many observers received the message
+      let observerCount = 0;
+      for (const id of clients.keys()) {
+        if (id !== clientId && id !== data.target) observerCount++;
+      }
+      log("INFO", `Audio ducking: ${data.ducking ? "DUCK" : "UNDUCK"}`, {
         from: clientId,
         to: data.target,
+        observers: observerCount,
       });
       return;
     }
