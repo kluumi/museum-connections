@@ -440,6 +440,30 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
+    // --- Audio ducking: relay to target AND broadcast to observers ---
+    // This allows the operator dashboard to see VOX state for both senders
+    if (data.type === "audio_ducking" && data.target) {
+      if (!validateClientName(data.target)) {
+        safeSend(ws, JSON.stringify({ type: "error", error: "invalid_target" }), clientId);
+        return;
+      }
+      // Relay to target (the sender being ducked)
+      relayToTarget(data.target, data, ws, clientId);
+      // Also broadcast to all observers (operator dashboards)
+      const message = JSON.stringify({ ...data, from: clientId });
+      for (const [id, ws] of clients) {
+        // Skip sender and target - they already know
+        if (id !== clientId && id !== data.target) {
+          safeSend(ws, message, id);
+        }
+      }
+      log("DEBUG", `Audio ducking: ${data.ducking ? "DUCK" : "UNDUCK"}`, {
+        from: clientId,
+        to: data.target,
+      });
+      return;
+    }
+
     // --- Relay to target ---
     if (data.target && RELAY_EVENTS.has(data.type)) {
       // Validate relay message structure
