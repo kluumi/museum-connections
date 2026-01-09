@@ -722,21 +722,27 @@ export class StreamManager {
   }
 
   private handlePeerDisconnected(peerId: NodeId): void {
-    // Check if it's OBS receiver
+    // DON'T close WebRTC connections here!
+    // The P2P connection may still be working fine even if the peer briefly
+    // disconnected from signaling (e.g., during server restart).
+    // Let the WebRTC connection state machine handle actual connection failures.
+    // When the peer reconnects to signaling, they can request a new offer if needed.
+
+    // Check if it's OBS receiver - just log, don't close
     if (peerId === this.obsTarget) {
-      webrtcLogger.info(`OBS receiver ${peerId} disconnected, closing WebRTC`);
-      this.obsWebRTC?.close();
-      this.obsWebRTC = null;
-      this.onLog?.(`${this.targetCity} OBS déconnecté`, "warning");
+      webrtcLogger.info(
+        `OBS receiver ${peerId} disconnected from signaling (WebRTC kept alive)`,
+      );
+      this.onLog?.(`${this.targetCity} OBS déconnecté du signaling`, "warning");
     }
 
-    // Check if it's an operator
+    // Check if it's an operator - just log, don't close
     if (isOperatorNode(peerId)) {
       const service = this.operatorConnections.get(peerId);
       if (service) {
-        webrtcLogger.info(`Operator ${peerId} disconnected, closing WebRTC`);
-        service.close();
-        this.operatorConnections.delete(peerId);
+        webrtcLogger.info(
+          `Operator ${peerId} disconnected from signaling (WebRTC kept alive)`,
+        );
       }
     }
   }

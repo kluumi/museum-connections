@@ -374,17 +374,14 @@ export class ReceiverManager {
   }
 
   private handleSourceDisconnected(): void {
-    webrtcLogger.info(`Source ${this.sourceId} disconnected`);
-    this._remoteStream = null;
-    this.onRemoteStream?.(null);
+    webrtcLogger.info(`Source ${this.sourceId} disconnected from signaling`);
 
-    // Close existing WebRTC connection
-    if (this.webrtc) {
-      this.webrtc.close();
-      this.webrtc = null;
-    }
+    // DON'T close WebRTC or clear the stream here!
+    // The P2P connection may still be working fine even if the sender briefly
+    // disconnected from signaling (e.g., during server restart).
+    // Let the WebRTC connection state machine handle actual connection failures.
 
-    // Reset offer state for next connection
+    // Just reset offer state so we can request a new offer when sender reconnects
     this.hasRequestedOffer = false;
   }
 

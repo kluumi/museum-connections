@@ -689,7 +689,10 @@ export class OperatorManager {
     const state = this.sourceStates.get(sourceId);
     if (!state) return;
 
-    this.closeWebRTC(sourceId);
+    // DON'T close WebRTC here! The P2P connection may still be working fine
+    // even if the sender briefly disconnected from signaling (e.g., during server restart).
+    // Let the WebRTC connection state machine handle actual connection failures.
+    // Only update availability state - the UI can show "sender offline" without killing the stream.
 
     // Reset heartbeat tracking via HeartbeatMonitor
     this.heartbeatMonitor.resetSource(sourceId);
@@ -697,7 +700,7 @@ export class OperatorManager {
     // Sync offer requester state
     this.syncOfferRequesterState(sourceId);
 
-    this.onLog?.(sourceId, "Émetteur déconnecté", "warning");
+    this.onLog?.(sourceId, "Émetteur déconnecté du signaling", "warning");
 
     this.emitSourceState(sourceId, state);
   }
