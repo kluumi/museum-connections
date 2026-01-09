@@ -12,7 +12,6 @@ import {
   NodeId,
   type SenderNodeId,
 } from "@/constants/node-ids";
-import { useAudioDucking } from "@/hooks/useAudioDucking";
 import { useCameraChange } from "@/hooks/useCameraChange";
 import { useConnectionLogging } from "@/hooks/useConnectionLogging";
 import { useFullscreen } from "@/hooks/useFullscreen";
@@ -174,10 +173,6 @@ export function SenderDashboard({
   // Queue for pending remote control actions received before handlers are ready
   const pendingControlAction = useRef<"start" | "stop" | null>(null);
 
-  // Refs for audio ducking functions (set after useAudioDucking hook)
-  const duckRef = useRef<((gain?: number) => void) | null>(null);
-  const unduckRef = useRef<(() => void) | null>(null);
-
   // Remote sender target for VOX ducking (Nantes -> Paris, Paris -> Nantes)
   const remoteSenderTarget = getRemoteSenderTarget(nodeId);
 
@@ -215,18 +210,20 @@ export function SenderDashboard({
         }
       }
     },
-    onAudioDucking: (ducking, gain) => {
-      // Received ducking command from remote sender
-      console.log(
-        `🎚️ VOX: ${ducking ? "DUCKED" : "UNDUCKED"} by remote (gain: ${gain})`,
-      );
+    onAudioDucking: (ducking, _gain) => {
+      // Received ducking command from remote sender - simply mute/unmute
+      console.log(`🎚️ VOX: ${ducking ? "MUTED" : "UNMUTED"} by remote`);
       setIsDucked(ducking);
 
-      // Apply smooth gain reduction using Web Audio API
-      if (ducking) {
-        duckRef.current?.(gain);
-      } else {
-        unduckRef.current?.();
+      // Mute/unmute the outgoing audio track
+      if (localStreamRef.current) {
+        for (const track of localStreamRef.current.getAudioTracks()) {
+          // When ducked: mute. When not ducked: respect user's audio setting
+          track.enabled = ducking
+            ? false
+            : useSettingsStore.getState().getSelectedDevices(nodeId)
+                .isAudioEnabled;
+        }
       }
     },
     addLog,
@@ -283,29 +280,11 @@ export function SenderDashboard({
     adoptStream,
   } = useUserMedia({ videoSettings });
 
-  // Audio ducking - applies gain reduction to outgoing audio when remote sender speaks
-  const {
-    duck,
-    unduck,
-    processedStream: duckedStream,
-  } = useAudioDucking(localStream, {
-    enabled: true,
-    duckedGain: voxSettings.duckedGain,
-  });
-
-  // Keep ducking refs in sync (refs declared before useStreamManager)
-  useEffect(() => {
-    duckRef.current = duck;
-    unduckRef.current = unduck;
-  }, [duck, unduck]);
-
   // Keep refs in sync
   useEffect(() => {
     localStreamRef.current = localStream;
-    // Update stream manager when local stream changes
-    // Use the ducked stream for WebRTC transmission (with gain control)
-    stream.setLocalStream(duckedStream ?? localStream);
-  }, [localStream, duckedStream, stream.setLocalStream]);
+    stream.setLocalStream(localStream);
+  }, [localStream, stream.setLocalStream]);
 
   useEffect(() => {
     selectedCameraIdRef.current = selectedCameraId;

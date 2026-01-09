@@ -234,7 +234,9 @@ export class SignalingService {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       // Queue critical messages for retry when connection is restored
       if (SignalingService.QUEUEABLE_MESSAGES.has(message.type)) {
-        if (this.pendingMessages.length < SignalingService.MAX_PENDING_MESSAGES) {
+        if (
+          this.pendingMessages.length < SignalingService.MAX_PENDING_MESSAGES
+        ) {
           this.pendingMessages.push(message);
           signalingLogger.info("Queued message for reconnection", {
             type: message.type,
@@ -443,7 +445,9 @@ export class SignalingService {
 
       // Handle server_restart - proactively reconnect instead of waiting for close
       if (message.type === "server_restart") {
-        signalingLogger.info("Server restart notification received, reconnecting proactively");
+        signalingLogger.info(
+          "Server restart notification received, reconnecting proactively",
+        );
         eventBus.emit("signaling:server_restart", { nodeId: this.nodeId });
         // Close and schedule immediate reconnection
         // Don't set intentionallyClosed so reconnection will happen

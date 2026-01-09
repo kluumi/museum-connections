@@ -94,29 +94,6 @@ export function VoxSettingsPanel({
         </p>
       </div>
 
-      {/* Ducked Gain */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">Volume réduit</Label>
-          <span className="text-xs font-mono text-muted-foreground">
-            {(settings.duckedGain * 100).toFixed(0)}%
-          </span>
-        </div>
-        <Slider
-          value={[settings.duckedGain * 100]}
-          onValueChange={([value]) =>
-            onSettingsChange({ duckedGain: value / 100 })
-          }
-          min={0}
-          max={50}
-          step={5}
-          className="w-full"
-        />
-        <p className="text-[10px] text-muted-foreground">
-          Volume de l'autre émetteur quand vous parlez
-        </p>
-      </div>
-
       {/* Reset Button */}
       <Button
         variant="outline"
