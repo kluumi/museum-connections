@@ -135,6 +135,14 @@ export interface LoginErrorMessage extends BaseMessage {
   message: string;
 }
 
+// Server restart notification (server -> all clients during graceful shutdown)
+export interface ServerRestartMessage extends BaseMessage {
+  type: "server_restart";
+  message: string;
+  /** Suggested delay before reconnecting (ms) */
+  reconnectIn: number;
+}
+
 // Union types for all messages
 export type ClientToServerMessage =
   | LoginMessage
@@ -174,7 +182,8 @@ export type ServerToClientMessage =
   | StreamErrorMessage
   | StreamControlMessage
   | AudioDuckingMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | ServerRestartMessage;
 
 export type SignalingMessage = ClientToServerMessage | ServerToClientMessage;
 

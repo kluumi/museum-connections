@@ -94,6 +94,17 @@ export class SignalingService {
   private heartbeatIntervalMs: number;
   private heartbeatTimeoutMs: number;
 
+  // Message queue for critical messages during reconnection
+  // These messages will be sent once connection is restored
+  private pendingMessages: ClientToServerMessage[] = [];
+  private static readonly QUEUEABLE_MESSAGES = new Set([
+    "offer",
+    "answer",
+    "candidate",
+    "request_offer",
+  ]);
+  private static readonly MAX_PENDING_MESSAGES = 100;
+
   // Event handlers
   private messageHandlers = new Set<MessageHandler>();
   private stateChangeHandlers = new Set<StateChangeHandler>();
@@ -221,11 +232,26 @@ export class SignalingService {
    */
   send(message: ClientToServerMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      signalingLogger.warn("Cannot send message: WebSocket not connected", {
-        type: message.type,
-        wsExists: !!this.ws,
-        wsState: this.ws?.readyState,
-      });
+      // Queue critical messages for retry when connection is restored
+      if (SignalingService.QUEUEABLE_MESSAGES.has(message.type)) {
+        if (this.pendingMessages.length < SignalingService.MAX_PENDING_MESSAGES) {
+          this.pendingMessages.push(message);
+          signalingLogger.info("Queued message for reconnection", {
+            type: message.type,
+            queueSize: this.pendingMessages.length,
+          });
+        } else {
+          signalingLogger.warn("Message queue full, dropping message", {
+            type: message.type,
+          });
+        }
+      } else {
+        signalingLogger.warn("Cannot send message: WebSocket not connected", {
+          type: message.type,
+          wsExists: !!this.ws,
+          wsState: this.ws?.readyState,
+        });
+      }
       return;
     }
 
@@ -382,6 +408,9 @@ export class SignalingService {
       return;
     }
 
+    // Track if this was a reconnection (state was RECONNECTING before)
+    const wasReconnecting = this.state === SignalingState.RECONNECTING;
+
     signalingLogger.info("Connected");
     this.reconnectAttempt = 0;
     this.reconnectDelay = CONFIG.RECONNECT.INITIAL_DELAY;
@@ -394,6 +423,12 @@ export class SignalingService {
 
     this.setState(SignalingState.CONNECTED);
     eventBus.emit("signaling:connected", { nodeId: this.nodeId });
+
+    // Emit reconnected event if this was a successful reconnection
+    if (wasReconnecting) {
+      signalingLogger.info("Reconnection successful");
+      eventBus.emit("signaling:reconnected", { nodeId: this.nodeId });
+    }
   };
 
   private handleMessage = (event: MessageEvent): void => {
@@ -406,10 +441,23 @@ export class SignalingService {
         return;
       }
 
+      // Handle server_restart - proactively reconnect instead of waiting for close
+      if (message.type === "server_restart") {
+        signalingLogger.info("Server restart notification received, reconnecting proactively");
+        eventBus.emit("signaling:server_restart", { nodeId: this.nodeId });
+        // Close and schedule immediate reconnection
+        // Don't set intentionallyClosed so reconnection will happen
+        this.reconnectDelay = message.reconnectIn ?? 1000;
+        this.ws?.close(1000, "Server restart");
+        return;
+      }
+
       // Handle login_success - emit event to clear any blocked state
       if (message.type === "login_success") {
         signalingLogger.info("Login successful");
         eventBus.emit("signaling:login_success", { nodeId: this.nodeId });
+        // Flush any queued messages from during reconnection
+        this.flushPendingMessages();
         // Continue to notify handlers below
       }
 
@@ -539,12 +587,38 @@ export class SignalingService {
     }
   }
 
+  /**
+   * Flush queued messages after reconnection
+   * Sends all pending critical messages that were queued during disconnection
+   */
+  private flushPendingMessages(): void {
+    if (this.pendingMessages.length === 0) return;
+
+    signalingLogger.info("Flushing pending messages", {
+      count: this.pendingMessages.length,
+    });
+
+    // Take a copy and clear the queue before sending
+    // This prevents infinite loops if send() fails and re-queues
+    const messages = [...this.pendingMessages];
+    this.pendingMessages = [];
+
+    for (const message of messages) {
+      this.send(message);
+    }
+  }
+
   private cleanup(): void {
     this.stopHeartbeat();
 
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
+    }
+
+    // Clear pending messages on intentional disconnect to avoid stale messages
+    if (this.intentionallyClosed) {
+      this.pendingMessages = [];
     }
 
     if (this.ws) {
