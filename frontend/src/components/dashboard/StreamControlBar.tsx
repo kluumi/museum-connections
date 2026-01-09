@@ -236,8 +236,8 @@ export function StreamControlBar({
 
       {/* VOX Ducking Indicators - Always reserve space to prevent layout shift */}
       <div className="flex gap-1 shrink-0 w-[120px] justify-end">
-        {isVoxTriggered && <VoxBadge type="tx" />}
-        {isDucked && <VoxBadge type="rx" />}
+        {isVoxTriggered && <VoxBadge type="speaking" />}
+        {isDucked && <VoxBadge type="muted" />}
       </div>
 
       {/* Fullscreen Toggle */}

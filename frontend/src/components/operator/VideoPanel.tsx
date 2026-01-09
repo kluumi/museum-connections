@@ -112,8 +112,8 @@ export function VideoPanel({
 
           <div className="flex items-center gap-2">
             {/* VOX Badges */}
-            {isVoxTriggered && <VoxBadge type="tx" />}
-            {isDucked && <VoxBadge type="rx" />}
+            {isVoxTriggered && <VoxBadge type="speaking" />}
+            {isDucked && <VoxBadge type="muted" />}
             <SenderStatusBadge title={title} isAvailable={isSenderAvailable} />
             {obsReceiverId && <ObsStatusBadge isConnected={isObsConnected} />}
             {connectionState && (
