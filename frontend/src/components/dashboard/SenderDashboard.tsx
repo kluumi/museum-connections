@@ -905,10 +905,8 @@ export function SenderDashboard({
   }, [localStream, isAudioEnabled]);
 
   // VOX Monitoring - detect local speech and send ducking commands to remote sender
-  // Only enabled for Nantes (to duck Paris) since Paris environment is too noisy
+  // Enables walkie-talkie style communication: when one speaks, the other is muted
   useEffect(() => {
-    // Only enable VOX for Nantes
-    if (nodeId !== NodeId.NANTES) return;
     if (!localStream || !isStreaming || !stream.isSignalingConnected) return;
 
     const audioTracks = localStream.getAudioTracks();
