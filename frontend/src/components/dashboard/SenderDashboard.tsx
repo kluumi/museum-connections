@@ -131,6 +131,8 @@ export function SenderDashboard({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  // Track if we've ever successfully logged in - used to distinguish reconnection race from true duplicate
+  const hasEverLoggedIn = useRef(false);
   // Initial stream from enumerateDevices - used to avoid extra getUserMedia call on first camera selection
   const [initialStream, setInitialStream] = useState<MediaStream | null>(null);
   // VOX Ducking state
@@ -246,13 +248,23 @@ export function SenderDashboard({
   useEffect(() => {
     const unsubBlocked = eventBus.on("signaling:blocked", (data) => {
       if (data.nodeId === nodeId && data.reason === "already_connected") {
-        setBlockedMessage(data.message);
+        // Only show blocked overlay if we've never successfully logged in
+        // If we had a previous successful login, this is a reconnection race condition
+        // (server hasn't cleaned up old connection yet), not a true duplicate tab
+        if (!hasEverLoggedIn.current) {
+          setBlockedMessage(data.message);
+        } else {
+          console.log(
+            "📹 Ignoring already_connected - reconnection race (had previous successful login)",
+          );
+        }
       }
     });
 
-    // Clear blocked state if login succeeds (after refresh when other tab is closed)
+    // Clear blocked state and mark as logged in on success
     const unsubLoginSuccess = eventBus.on("signaling:login_success", (data) => {
       if (data.nodeId === nodeId) {
+        hasEverLoggedIn.current = true;
         setBlockedMessage(null);
       }
     });
